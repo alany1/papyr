@@ -214,6 +214,33 @@
     }
   });
 
+  // ⌘⌥K: quote the current selection into the assistant input and focus it.
+  // The PDF viewer forwards its selection via postMessage; a selection in the
+  // note pane is quoted directly; with no selection it just jumps focus.
+  function quoteToAssistant(text, source) {
+    const clean = (text || '').replace(/\s+/g, ' ').trim().slice(0, 4000);
+    const snippet = clean ? `"${clean}" (${source}) ` : '';
+    if (snippet) TermPane.insert(snippet);
+    TermPane.focus();
+    window.__papyrLastQuote = snippet; // diagnostics / tests
+  }
+  window.addEventListener('message', (e) => {
+    const d = e.data;
+    if (d && d.type === 'papyr-quote') {
+      const source = [selected ? selected.base : 'paper', d.page ? `p.${d.page}` : null]
+        .filter(Boolean)
+        .join(', ');
+      quoteToAssistant(d.text, source);
+    }
+  });
+  window.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyK') {
+      e.preventDefault();
+      const text = window.getSelection()?.toString() || '';
+      quoteToAssistant(text, selected ? `${selected.base}, note` : 'note');
+    }
+  });
+
   window.papyr.onLibraryChanged(handlePapersChanged);
   window.papyr.onNoteChangedOnDisk((payload) => Note.handleDiskChange(payload));
   window.papyr.onFlushRequest(async () => {

@@ -77,6 +77,21 @@ window.addEventListener('message', (e) => {
   }
 });
 
+// ⌘⌥K / Ctrl+Alt+K: send the current selection to the assistant pane
+window.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyK') {
+    e.preventDefault();
+    const sel = window.getSelection();
+    const text = sel ? sel.toString() : '';
+    let page = null;
+    if (sel && sel.anchorNode) {
+      const el = sel.anchorNode.nodeType === Node.ELEMENT_NODE ? sel.anchorNode : sel.anchorNode.parentElement;
+      page = Number(el?.closest('.page')?.dataset.pageNumber) || null;
+    }
+    window.parent.postMessage({ type: 'papyr-quote', text, page }, '*');
+  }
+});
+
 const fileUrl = new URLSearchParams(location.search).get('file');
 if (fileUrl) {
   pdfjsLib

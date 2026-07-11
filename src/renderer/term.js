@@ -82,5 +82,14 @@ const TermPane = (() => {
     return start();
   }
 
-  return { init, restart, fit };
+  function focus() {
+    term?.focus();
+  }
+
+  // Insert text into the assistant's input line (single line, as if typed)
+  function insert(text) {
+    window.papyr.term.input(text);
+  }
+
+  return { init, restart, fit, focus, insert };
 })();

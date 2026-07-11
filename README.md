@@ -52,6 +52,9 @@ into the editor live, and never clobber unsaved typing (you get a Reload / Keep 
 - Layout, sidebar visibility/width, note mode, dark pages, and last-opened paper persist
   across launches (stored in config.json, not localStorage — Chromium's DOMStorage only
   flushes every ~5s and loses writes made just before quit).
+- **⌘⌥K** quotes the current selection (PDF or note) into the assistant input as
+  `"…" (paper, p.N)` and focuses it — select a passage, hit the shortcut, ask away.
+  With nothing selected it just jumps focus to the assistant.
 - If claude exits, press any key in the terminal pane to restart it.
 
 ## Development

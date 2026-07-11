@@ -10,10 +10,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // Tiny but structurally valid single-page PDF, used to self-seed an isolated
 // test library (run via scripts/e2e.sh so the user's real library is untouched).
 function minimalPdf() {
+  const stream = 'BT /F1 12 Tf 72 700 Td (Hello Papyr) Tj ET';
   const objs = [
     '<</Type/Catalog/Pages 2 0 R>>',
     '<</Type/Pages/Kids[3 0 R]/Count 1>>',
-    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]>>',
+    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
+    `<</Length ${stream.length}>>stream\n${stream}\nendstream`,
+    '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>',
   ];
   let out = '%PDF-1.4\n';
   const offsets = [];
@@ -94,6 +97,33 @@ async function run(win) {
     check('ctrl+wheel zooms in', !!zoom && zoom.during > zoom.before, JSON.stringify(zoom));
     check('zoom stable after the gesture', !!zoom && Math.abs(zoom.after - zoom.during) < 0.001,
       JSON.stringify(zoom));
+
+    // ⌘⌥K: selection in the PDF is quoted into the assistant input
+    const quoted = await viewerFrame()?.executeJavaScript(`
+      (async () => {
+        let el = null;
+        for (let i = 0; i < 40 && !el; i++) {
+          el = document.querySelector('.textLayer span, .textLayer div');
+          if (!el) await new Promise(r => setTimeout(r, 100));
+        }
+        if (!el) return { error: 'no text layer' };
+        const range = document.createRange();
+        range.selectNodeContents(el);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(range);
+        window.dispatchEvent(new KeyboardEvent('keydown',
+          { code: 'KeyK', metaKey: true, altKey: true, cancelable: true }));
+        return { selected: s.toString() };
+      })()
+    `);
+    await sleep(400);
+    const lastQuote = await js(`window.__papyrLastQuote`);
+    check('pdf selection quoted to assistant',
+      typeof lastQuote === 'string' && lastQuote.includes('Hello Papyr') && /p\.1/.test(lastQuote),
+      JSON.stringify({ quoted, lastQuote }));
+    check('assistant focused after quote',
+      await js(`!!document.activeElement && !!document.activeElement.closest('#term-pane')`));
 
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 
