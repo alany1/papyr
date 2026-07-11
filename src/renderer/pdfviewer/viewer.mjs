@@ -36,13 +36,31 @@ function commitZoom() {
   if (!pendingZoom) return;
   const { base, factor, ax, ay } = pendingZoom;
   pendingZoom = null;
-  const cx = container.scrollLeft + ax;
-  const cy = container.scrollTop + ay;
+  // Anchor to a fractional point of the page under the anchor: the gaps
+  // between pages don't scale, so plain linear scroll math drifts by a few
+  // pixels per page and the view visibly snapped after each gesture.
+  // (offsetTop/offsetLeft are layout coords, unaffected by the preview
+  // transform; the transform origin sat exactly at the anchor point.)
+  const anchorX = container.scrollLeft + ax;
+  const anchorY = container.scrollTop + ay;
+  let ref = null;
+  for (const p of viewerEl.querySelectorAll('.page')) {
+    ref = p;
+    if (anchorY < p.offsetTop + p.offsetHeight) break;
+  }
+  const fx = ref ? (anchorX - ref.offsetLeft) / ref.offsetWidth : 0;
+  const fy = ref ? (anchorY - ref.offsetTop) / ref.offsetHeight : 0;
   viewerEl.style.transform = '';
   viewerEl.style.transformOrigin = '';
   viewer.currentScale = base * factor;
-  container.scrollLeft = cx * factor - ax;
-  container.scrollTop = cy * factor - ay;
+  if (ref) {
+    const apply = () => {
+      container.scrollTop = ref.offsetTop + fy * ref.offsetHeight - ay;
+      container.scrollLeft = ref.offsetLeft + fx * ref.offsetWidth - ax;
+    };
+    apply();
+    requestAnimationFrame(apply); // pdf.js may adjust scroll async after rescale
+  }
 }
 
 container.addEventListener(
