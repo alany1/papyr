@@ -75,24 +75,24 @@ async function run(win) {
     );
     check('pdf.js renders pages', pageCount >= 1, `pages=${pageCount}`);
 
-    // Ctrl+wheel zoom: CSS-transform preview during the gesture, one commit after
+    // Ctrl+wheel zoom applies scale immediately (native smooth-zoom path)
     const zoom = await viewerFrame()?.executeJavaScript(`
       (async () => {
         const c = document.getElementById('viewerContainer');
-        const v = document.getElementById('viewer');
-        for (let i = 0; i < 5; i++) {
+        const v = window.__papyrViewer;
+        const before = v.currentScale;
+        for (let i = 0; i < 4; i++) {
           c.dispatchEvent(new WheelEvent('wheel',
-            { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 200, cancelable: true }));
+            { deltaY: -120, ctrlKey: true, clientX: 300, clientY: 300, cancelable: true }));
           await new Promise(r => setTimeout(r, 30));
         }
-        const during = v.style.transform;
-        await new Promise(r => setTimeout(r, 450));
-        return { during, after: v.style.transform };
+        const during = v.currentScale;
+        await new Promise(r => setTimeout(r, 600));
+        return { before, during, after: v.currentScale };
       })()
     `);
-    check('zoom previews with a css transform', /scale/.test((zoom && zoom.during) || ''),
-      JSON.stringify(zoom));
-    check('zoom commits once after the gesture', ((zoom && zoom.after) || '') === '',
+    check('ctrl+wheel zooms in', !!zoom && zoom.during > zoom.before, JSON.stringify(zoom));
+    check('zoom stable after the gesture', !!zoom && Math.abs(zoom.after - zoom.during) < 0.001,
       JSON.stringify(zoom));
 
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
