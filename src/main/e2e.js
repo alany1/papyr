@@ -74,6 +74,27 @@ async function run(win) {
       `document.querySelectorAll('.pdfViewer .page').length`
     );
     check('pdf.js renders pages', pageCount >= 1, `pages=${pageCount}`);
+
+    // Ctrl+wheel zoom: CSS-transform preview during the gesture, one commit after
+    const zoom = await viewerFrame()?.executeJavaScript(`
+      (async () => {
+        const c = document.getElementById('viewerContainer');
+        const v = document.getElementById('viewer');
+        for (let i = 0; i < 5; i++) {
+          c.dispatchEvent(new WheelEvent('wheel',
+            { deltaY: -120, ctrlKey: true, clientX: 200, clientY: 200, cancelable: true }));
+          await new Promise(r => setTimeout(r, 30));
+        }
+        const during = v.style.transform;
+        await new Promise(r => setTimeout(r, 450));
+        return { during, after: v.style.transform };
+      })()
+    `);
+    check('zoom previews with a css transform', /scale/.test((zoom && zoom.during) || ''),
+      JSON.stringify(zoom));
+    check('zoom commits once after the gesture', ((zoom && zoom.after) || '') === '',
+      JSON.stringify(zoom));
+
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 
     // 2b. Assistant context: CLAUDE.md present, state.json tracks the selection

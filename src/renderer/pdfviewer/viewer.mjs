@@ -25,14 +25,49 @@ window.addEventListener('resize', () => {
   if (fitWidth && viewer.pdfDocument) viewer.currentScaleValue = 'page-width';
 });
 
-// Pinch / Ctrl+wheel zoom
+// Pinch / Ctrl+wheel zoom. Re-rendering on every wheel tick makes the pages
+// blink, so during the gesture we preview with a CSS transform on the
+// already-rendered pages (anchored at the cursor) and commit the real scale
+// once the gesture pauses — a single crisp re-render.
+const viewerEl = document.getElementById('viewer');
+let pendingZoom = null; // { base, factor, ax, ay, timer }
+
+function commitZoom() {
+  if (!pendingZoom) return;
+  const { base, factor, ax, ay } = pendingZoom;
+  pendingZoom = null;
+  const cx = container.scrollLeft + ax;
+  const cy = container.scrollTop + ay;
+  viewerEl.style.transform = '';
+  viewerEl.style.transformOrigin = '';
+  viewer.currentScale = base * factor;
+  container.scrollLeft = cx * factor - ax;
+  container.scrollTop = cy * factor - ay;
+}
+
 container.addEventListener(
   'wheel',
   (e) => {
     if (!(e.ctrlKey || e.metaKey)) return;
     e.preventDefault();
     fitWidth = false;
-    viewer.currentScale = Math.min(8, Math.max(0.25, viewer.currentScale * Math.pow(1.0015, -e.deltaY)));
+    if (!pendingZoom) {
+      const rect = container.getBoundingClientRect();
+      pendingZoom = {
+        base: viewer.currentScale,
+        factor: 1,
+        ax: e.clientX - rect.left,
+        ay: e.clientY - rect.top,
+        timer: null,
+      };
+      viewerEl.style.transformOrigin =
+        `${container.scrollLeft + pendingZoom.ax}px ${container.scrollTop + pendingZoom.ay}px`;
+    }
+    const target = Math.min(8, Math.max(0.25, pendingZoom.base * pendingZoom.factor * Math.pow(1.0015, -e.deltaY)));
+    pendingZoom.factor = target / pendingZoom.base;
+    viewerEl.style.transform = `scale(${pendingZoom.factor})`;
+    clearTimeout(pendingZoom.timer);
+    pendingZoom.timer = setTimeout(commitZoom, 180);
   },
   { passive: false }
 );
