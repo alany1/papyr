@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; frame-src papyr:; connect-src 'none'">
+  <title>Papyr</title>
+  <link rel="stylesheet" href="../../node_modules/@xterm/xterm/css/xterm.css">
+  <link rel="stylesheet" href="../../node_modules/katex/dist/katex.min.css">
+  <link rel="stylesheet" href="../../node_modules/markdown-it-texmath/css/texmath.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header id="titlebar">
+    <button id="sidebar-toggle" title="Toggle paper list (⌘B)">☰</button>
+    <img id="logo" src="../../assets/logo.svg" alt="">
+    <span id="app-name">papyr</span>
+    <span id="titlebar-paper"></span>
+    <div id="minimized-dock"></div>
+  </header>
+
+  <div id="app" class="sidebar-hidden">
+    <aside id="sidebar" class="pane">
+      <header id="sidebar-header">
+        <span id="sidebar-title">library</span>
+        <button id="change-library" title="Change library folder…">⚙</button>
+      </header>
+      <ul id="paper-list"></ul>
+      <div id="sidebar-empty" hidden>
+        <p>No papers yet.</p>
+        <p>Drag a PDF or an arXiv link here, or drop files into<br><code id="papers-dir-hint"></code></p>
+      </div>
+      <div id="new-collection-row">
+        <button id="new-collection">+ new collection</button>
+        <input id="new-collection-input" placeholder="collection name" hidden>
+      </div>
+      <footer id="sidebar-footer">
+        <img id="footer-logo" src="../../assets/logo.svg" alt="">
+        <span id="footer-path" title=""></span>
+      </footer>
+    </aside>
+
+    <div id="sidebar-divider"></div>
+
+    <div id="columns">
+      <section id="pdf-pane" class="pane" data-pane="pdf">
+        <div class="pane-header">
+          <span class="pane-dot dot-pdf"></span>paper
+          <div class="pane-actions">
+            <button id="pdf-dark" title="Toggle dark pages">☾</button>
+            <button class="pane-min" data-pane="pdf" title="Minimize pane">–</button>
+          </div>
+        </div>
+        <div class="pane-body">
+          <iframe id="pdf-frame" title="Paper"></iframe>
+          <div id="pdf-empty">
+            <img src="../../assets/logo.svg" alt="">
+            <p>select a paper</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="note-pane" class="pane" data-pane="note">
+        <div class="pane-header">
+          <span class="pane-dot dot-note"></span>note
+          <div class="pane-actions">
+            <button id="note-mode" title="Toggle edit / reading view (⌘E)">✎</button>
+            <button class="pane-min" data-pane="note" title="Minimize pane">–</button>
+          </div>
+        </div>
+        <div class="pane-body">
+          <div id="note-banner" hidden>
+            <span>Note changed on disk</span>
+            <button id="note-reload">Reload</button>
+            <button id="note-keep">Keep mine</button>
+          </div>
+          <textarea id="note-editor" placeholder="Select a paper to open its note" spellcheck="false" disabled hidden></textarea>
+          <div id="note-view"></div>
+        </div>
+      </section>
+
+      <section id="term-pane" class="pane" data-pane="term">
+        <div class="pane-header">
+          <span class="pane-dot dot-term"></span>assistant
+          <div class="pane-actions">
+            <button class="pane-min" data-pane="term" title="Minimize pane">–</button>
+          </div>
+        </div>
+        <div class="pane-body">
+          <div id="term"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="drag-overlay" hidden></div>
+  <div id="drop-hint" hidden><p>Drop PDF or link to import ♡</p></div>
+  <div id="pane-ghost" hidden></div>
+  <div id="drop-indicator" hidden></div>
+  <div id="pane-store" hidden></div>
+
+  <script src="../../node_modules/@xterm/xterm/lib/xterm.js"></script>
+  <script src="../../node_modules/@xterm/addon-fit/lib/addon-fit.js"></script>
+  <script src="../../node_modules/markdown-it/dist/markdown-it.min.js"></script>
+  <script src="../../node_modules/katex/dist/katex.min.js"></script>
+  <script src="../../node_modules/markdown-it-texmath/texmath.js"></script>
+  <script src="layout.js"></script>
+  <script src="sidebar.js"></script>
+  <script src="note.js"></script>
+  <script src="term.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+const { ipcMain, dialog } = require('electron');
+const config = require('./config');
+const library = require('./library');
+const importer = require('./importer');
+const ptyManager = require('./ptyManager');
+const watcher = require('./watcher');
+
+function startWatching(win) {
+  watcher.start(config.get().libraryPath, {
+    onPapersChanged: async () => {
+      if (win.isDestroyed()) return;
+      win.webContents.send('library:changed', await library.listPapers(config.get().libraryPath));
+    },
+    onNoteChanged: (base, content) => {
+      if (win.isDestroyed()) return;
+      win.webContents.send('note:changed-on-disk', { base, content });
+    },
+  });
+}
+
+function register(win) {
+  ptyManager.setHandlers({
+    onData: (data) => {
+      if (!win.isDestroyed()) win.webContents.send('pty:data', data);
+    },
+    onExit: ({ exitCode }) => {
+      if (!win.isDestroyed()) win.webContents.send('pty:exit', { exitCode });
+    },
+  });
+
+  ipcMain.handle('config:get', () => ({
+    libraryPath: config.get().libraryPath,
+    ui: config.get().ui || {},
+  }));
+
+  ipcMain.on('ui:set', (_e, partial) => {
+    if (partial && typeof partial === 'object' && !Array.isArray(partial)) config.setUi(partial);
+  });
+
+  ipcMain.handle('library:pick', async () => {
+    const result = await dialog.showOpenDialog(win, {
+      title: 'Choose your Papyr library folder',
+      properties: ['openDirectory', 'createDirectory'],
+      defaultPath: config.get().libraryPath,
+    });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    config.setLibraryPath(result.filePaths[0]);
+    startWatching(win);
+    ptyManager.kill(); // renderer restarts the terminal with the new cwd
+    return { libraryPath: config.get().libraryPath };
+  });
+
+  ipcMain.handle('library:list', () => library.listPapers(config.get().libraryPath));
+
+  ipcMain.handle('paper:move', async (_e, relPath, targetCollection) => {
+    try {
+      return { ok: true, ...(await library.movePaper(config.get().libraryPath, relPath, targetCollection)) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('collection:create', async (_e, name) => {
+    try {
+      await library.createCollection(config.get().libraryPath, name);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('import:files', async (_e, paths, collection) => {
+    try {
+      if (!Array.isArray(paths)) throw new Error('No files');
+      return { ok: true, ...(await importer.importFiles(config.get().libraryPath, paths, collection)) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('import:url', async (_e, url, collection) => {
+    try {
+      return { ok: true, ...(await importer.importUrl(config.get().libraryPath, url, collection)) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('collection:rename', async (_e, oldName, newName) => {
+    try {
+      await library.renameCollection(config.get().libraryPath, oldName, newName);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  ipcMain.handle('note:load', (_e, base) => library.loadNote(config.get().libraryPath, base));
+
+  ipcMain.handle('note:save', async (_e, base, content) => {
+    if (typeof content !== 'string') throw new Error('Note content must be a string');
+    const lib = config.get().libraryPath;
+    watcher.recordSelfWrite(library.notePath(lib, base), content);
+    await library.saveNote(lib, base, content);
+    return { ok: true };
+  });
+
+  ipcMain.handle('pty:start', (_e, size) =>
+    ptyManager.start({
+      cols: size && size.cols,
+      rows: size && size.rows,
+      cwd: config.get().libraryPath,
+    })
+  );
+
+  ipcMain.handle('pty:kill', () => {
+    ptyManager.kill();
+    return { ok: true };
+  });
+
+  ipcMain.on('paper:selected', (_e, info) => {
+    const selected = info && typeof info.relPath === 'string' && typeof info.base === 'string';
+    library
+      .writeState(config.get().libraryPath, {
+        currentPaper: selected ? `papers/${info.relPath}` : null,
+        currentNote: selected ? `notes/${info.base}.md` : null,
+        updatedAt: new Date().toISOString(),
+      })
+      .catch(console.error);
+  });
+
+  ipcMain.on('pty:input', (_e, data) => {
+    if (typeof data === 'string') ptyManager.write(data);
+  });
+
+  ipcMain.on('pty:resize', (_e, size) => {
+    if (size && Number.isInteger(size.cols) && Number.isInteger(size.rows)) {
+      ptyManager.resize(size);
+    }
+  });
+
+  startWatching(win);
+}
+
+module.exports = { register };

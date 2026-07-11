@@ -1,0 +1,29 @@
+{
+  "name": "papyr",
+  "productName": "Papyr",
+  "version": "0.1.0",
+  "description": "A local three-pane research workspace: paper, note, and a Claude Code assistant.",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "rebuild": "electron-rebuild -f -w node-pty",
+    "postinstall": "electron-rebuild -f -w node-pty",
+    "screenshot": "PAPYR_SCREENSHOT=screenshot.png electron .",
+    "test": "sh scripts/e2e.sh"
+  },
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "chokidar": "^5.0.0",
+    "katex": "^0.17.0",
+    "markdown-it": "^14.3.0",
+    "markdown-it-texmath": "^1.0.0",
+    "node-pty": "^1.1.0",
+    "pdfjs-dist": "^6.1.200"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "electron": "^43.1.0"
+  }
+}
