@@ -61,6 +61,17 @@ const TermPane = (() => {
     term.loadAddon(fitAddon);
     term.open(document.getElementById('term'));
 
+    // Shift+Enter sends the same \r as Enter in a plain terminal, so claude
+    // submits instead of inserting a newline. Send ESC+CR (what claude's
+    // /terminal-setup configures in iTerm/VS Code) to mean "newline".
+    term.attachCustomKeyEventHandler((ev) => {
+      if (ev.type === 'keydown' && ev.key === 'Enter' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        window.papyr.term.input('\x1b\r');
+        return false;
+      }
+      return true;
+    });
+
     term.onData((data) => {
       if (restartArmed) {
         restartArmed = false;
