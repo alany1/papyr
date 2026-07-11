@@ -101,20 +101,26 @@ async function run(win) {
     // ⌘⌥K: selection in the PDF is quoted into the assistant input
     const quoted = await viewerFrame()?.executeJavaScript(`
       (async () => {
-        let el = null;
-        for (let i = 0; i < 40 && !el; i++) {
-          el = document.querySelector('.textLayer span, .textLayer div');
-          if (!el) await new Promise(r => setTimeout(r, 100));
+        // the zoom test's deferred re-render can rebuild the text layer and
+        // detach nodes mid-flight — retry until a selection actually sticks
+        let selectedText = '';
+        for (let i = 0; i < 40 && !selectedText; i++) {
+          const el = [...document.querySelectorAll('.textLayer span, .textLayer div')]
+            .find(n => n.isConnected && n.textContent.trim().length > 0);
+          if (el) {
+            const range = document.createRange();
+            range.selectNodeContents(el);
+            const s = getSelection();
+            s.removeAllRanges();
+            s.addRange(range);
+            selectedText = s.toString();
+          }
+          if (!selectedText) await new Promise(r => setTimeout(r, 150));
         }
-        if (!el) return { error: 'no text layer' };
-        const range = document.createRange();
-        range.selectNodeContents(el);
-        const s = getSelection();
-        s.removeAllRanges();
-        s.addRange(range);
+        if (!selectedText) return { error: 'selection never stuck' };
         window.dispatchEvent(new KeyboardEvent('keydown',
           { code: 'KeyK', metaKey: true, altKey: true, cancelable: true }));
-        return { selected: s.toString() };
+        return { selected: selectedText };
       })()
     `);
     await sleep(400);
