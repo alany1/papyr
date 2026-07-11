@@ -40,24 +40,29 @@ const Sidebar = (() => {
       e.dataTransfer.setData('text/plain', paper.relPath);
       e.dataTransfer.effectAllowed = 'move';
     });
+    li.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startRenameInput(li, paper.base, (name) => handlers.onRenamePaper(paper, name));
+    });
     makeDropTarget(li, paper.collection); // dropping on a paper files it into that paper's group
     return li;
   }
 
-  function startRename(li, collection) {
+  function startRenameInput(li, initialValue, commit) {
     const input = document.createElement('input');
     input.className = 'rename-input';
-    input.value = collection;
+    input.value = initialValue;
+    li.draggable = false;
     li.textContent = '';
     li.appendChild(input);
     input.focus();
     input.select();
     let done = false;
-    const finish = (commit) => {
+    const finish = (ok) => {
       if (done) return;
       done = true;
       const name = input.value.trim();
-      if (commit && name && name !== collection) handlers.onRenameCollection(collection, name);
+      if (ok && name && name !== initialValue) commit(name);
       else render();
     };
     input.addEventListener('click', (e) => e.stopPropagation());
@@ -93,7 +98,7 @@ const Sidebar = (() => {
     if (collection !== '') {
       li.addEventListener('dblclick', () => {
         clearTimeout(clickTimer);
-        startRename(li, collection);
+        startRenameInput(li, collection, (name) => handlers.onRenameCollection(collection, name));
       });
     }
     return li;

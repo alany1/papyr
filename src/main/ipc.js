@@ -69,6 +69,21 @@ function register(win) {
     }
   });
 
+  ipcMain.handle('paper:rename', async (_e, relPath, newBase) => {
+    try {
+      const lib = config.get().libraryPath;
+      const result = await library.renamePaper(lib, relPath, newBase);
+      // the renamed note fires a watcher "add"; suppress it as our own write
+      if (result.noteContent !== null) {
+        watcher.recordSelfWrite(library.notePath(lib, result.base), result.noteContent);
+      }
+      delete result.noteContent;
+      return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('import:files', async (_e, paths, collection) => {
     try {
       if (!Array.isArray(paths)) throw new Error('No files');

@@ -108,6 +108,24 @@
     if (first) await selectPaper(first);
   }
 
+  async function renamePaperTo(paper, newBase) {
+    const result = await window.papyr.renamePaper(paper.relPath, newBase);
+    if (!result.ok) {
+      Sidebar.flashFooter(result.error);
+      Sidebar.refresh(); // restore the item the rename input replaced
+      return;
+    }
+    if (selected && selected.relPath === paper.relPath) {
+      selected = { ...selected, base: result.base, fileName: result.fileName, relPath: result.relPath };
+      showPdf(selected);
+      Sidebar.setSelected(selected.relPath);
+      window.papyr.paperSelected(selected);
+      window.papyr.setUi({ lastPaper: selected.relPath });
+      Note.rename(result.base);
+    }
+    // the library watcher delivers the renamed listing
+  }
+
   async function renameCollection(oldName, newName) {
     const result = await window.papyr.renameCollection(oldName, newName);
     if (!result.ok) {
@@ -169,6 +187,7 @@
     onCreateCollection: createCollection,
     onToggleCollapse: toggleCollapse,
     onRenameCollection: renameCollection,
+    onRenamePaper: renamePaperTo,
   });
   Sidebar.setCollapsed(ui.collapsedCollections);
 

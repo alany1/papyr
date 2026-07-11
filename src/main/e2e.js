@@ -406,6 +406,32 @@ async function run(win) {
     check('imported paper auto-selected',
       (await js(`document.querySelector('#paper-list li.selected')?.title`)) === 'E2E Fetched Paper.pdf');
 
+    // 5f. Rename a paper: the PDF and its note rename together, selection follows
+    await js(`
+      (() => { const li = document.querySelector('#paper-list li.selected');
+        li.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()
+    `);
+    await js(`
+      (() => { const input = document.querySelector('#paper-list .rename-input');
+        input.value = 'E2E Renamed Paper';
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); })()
+    `);
+    await sleep(1200);
+    check('paper renamed on disk', fs.existsSync(path.join(lib(), 'papers', 'E2E Renamed Paper.pdf')));
+    check('note renamed with paper', fs.existsSync(path.join(lib(), 'notes', 'E2E Renamed Paper.md')));
+    check('old note gone after rename', !fs.existsSync(path.join(lib(), 'notes', 'E2E Fetched Paper.md')));
+    check('selection follows renamed paper',
+      (await js(`document.querySelector('#paper-list li.selected')?.title`)) === 'E2E Renamed Paper.pdf');
+    check('no conflict banner after rename', await js(`document.getElementById('note-banner').hidden`));
+    await js(`
+      (() => { const ed = document.getElementById('note-editor');
+        ed.value += 'renamed-note-marker';
+        ed.dispatchEvent(new Event('input', { bubbles: true })); })()
+    `);
+    await sleep(1400);
+    check('autosave targets the renamed note',
+      fs.readFileSync(path.join(lib(), 'notes', 'E2E Renamed Paper.md'), 'utf8').includes('renamed-note-marker'));
+
     // 6. Terminal: pty running and xterm received output
     check('pty running', ptyManager.isRunning());
     const termText = await js(`
@@ -437,7 +463,7 @@ async function run(win) {
     });
     fs.rmSync(path.join(lib(), 'papers', 'e2e-collection'), { recursive: true, force: true });
     fs.rmSync(path.join(lib(), 'papers', 'e2e-renamed'), { recursive: true, force: true });
-    for (const base of ['papyr-e2e-import', 'E2E Fetched Paper']) {
+    for (const base of ['papyr-e2e-import', 'E2E Fetched Paper', 'E2E Renamed Paper']) {
       fs.rmSync(path.join(lib(), 'papers', `${base}.pdf`), { force: true });
       fs.rmSync(path.join(lib(), 'notes', `${base}.md`), { force: true });
     }

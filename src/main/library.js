@@ -73,6 +73,45 @@ function paperPath(lib, relPath) {
   return path.join(papersDir(lib), ...segments);
 }
 
+async function assertAbsent(p, message) {
+  try {
+    await fs.access(p);
+  } catch (err) {
+    if (err.code === 'ENOENT') return;
+    throw err;
+  }
+  throw new Error(message);
+}
+
+// Renames the PDF and its paired note together so the pairing never breaks.
+async function renamePaper(lib, relPath, newBase) {
+  assertBase(newBase);
+  const from = paperPath(lib, relPath);
+  const collection = relPath.includes('/') ? relPath.split('/')[0] : '';
+  const oldBase = path.basename(from, '.pdf');
+  const newFileName = `${newBase}.pdf`;
+  if (newBase === oldBase) return { relPath, base: oldBase, fileName: newFileName, noteContent: null };
+  const to = path.join(path.dirname(from), newFileName);
+  await assertAbsent(to, `"${newFileName}" already exists`);
+  const oldNote = notePath(lib, oldBase);
+  const newNote = notePath(lib, newBase);
+  let noteContent = null;
+  try {
+    noteContent = await fs.readFile(oldNote, 'utf8');
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+  if (noteContent !== null) await assertAbsent(newNote, `note "${newBase}.md" already exists`);
+  await fs.rename(from, to);
+  if (noteContent !== null) await fs.rename(oldNote, newNote);
+  return {
+    relPath: collection ? `${collection}/${newFileName}` : newFileName,
+    base: newBase,
+    fileName: newFileName,
+    noteContent,
+  };
+}
+
 async function movePaper(lib, relPath, targetCollection) {
   if (targetCollection !== '') assertBase(targetCollection);
   const from = paperPath(lib, relPath);
@@ -151,6 +190,7 @@ module.exports = {
   assertBase,
   listPapers,
   movePaper,
+  renamePaper,
   createCollection,
   renameCollection,
   paperPath,

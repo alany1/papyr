@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('papyr', {
     return `papyr://app/pdfviewer/viewer.html?file=${encodeURIComponent(fileUrl)}`;
   },
   movePaper: (relPath, targetCollection) => ipcRenderer.invoke('paper:move', relPath, targetCollection),
+  renamePaper: (relPath, newBase) => ipcRenderer.invoke('paper:rename', relPath, newBase),
   createCollection: (name) => ipcRenderer.invoke('collection:create', name),
   renameCollection: (oldName, newName) => ipcRenderer.invoke('collection:rename', oldName, newName),
   importFiles: (paths, collection) => ipcRenderer.invoke('import:files', paths, collection),

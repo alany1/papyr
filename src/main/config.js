@@ -51,7 +51,9 @@ Claude Code session running in the library root).
   \`notes/\` — the user's note editor picks up your edits live.
 - Cross-paper syntheses can be new standalone markdown files in \`notes/\`
   (they don't need a paired PDF).
-- Never modify or delete the PDFs in \`papers/\`.
+- To rename a paper, rename BOTH files together so the pairing survives:
+  \`papers/<collection>/Old.pdf\` → \`New.pdf\` and \`notes/Old.md\` → \`notes/New.md\`.
+- Never modify or delete the PDFs in \`papers/\` (renaming as above is fine).
 `;
 
 function ensureLibrary() {

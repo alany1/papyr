@@ -34,7 +34,9 @@ the sidebar; it starts hidden). Click a paper to read it; its note opens beside 
 **Collections** are one-level subfolders of `papers/`: create one with "+ New collection"
 and drag papers between group headers to move them (notes stay flat in `notes/`, so moving
 a paper never orphans its note). Each header shows its paper count; click a header to
-fold/unfold the group (fold state persists), double-click one to rename the collection. Ask the assistant about the current paper or to
+fold/unfold the group (fold state persists), double-click one to rename the collection.
+**Double-click a paper to rename it** — its note renames with it, so the pairing never
+breaks (the assistant is told to rename in pairs too). Ask the assistant about the current paper or to
 synthesize across notes (e.g. "read papers/X.pdf and draft its note", "compare the three
 world-models notes and write notes/synthesis.md") — external edits to the open note flow
 into the editor live, and never clobber unsaved typing (you get a Reload / Keep mine choice).

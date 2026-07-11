@@ -69,6 +69,11 @@ const Note = (() => {
     if (mode === 'read') renderView();
   }
 
+  // The open note's file was renamed (paper rename); autosaves must follow.
+  function rename(base) {
+    if (currentBase !== null) currentBase = base;
+  }
+
   // Called by app.js before switching papers and on window close.
   async function flush() {
     hideBanner();
@@ -132,5 +137,5 @@ const Note = (() => {
     renderView();
   }
 
-  return { init, open, close, flush, handleDiskChange, setMode, getMode: () => mode };
+  return { init, open, close, flush, rename, handleDiskChange, setMode, getMode: () => mode };
 })();
