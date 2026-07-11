@@ -53,17 +53,23 @@ container.addEventListener(
     fitWidth = false;
     if (!pendingZoom) {
       const rect = container.getBoundingClientRect();
+      // Anchor horizontally at the viewport center: pages are centered in the
+      // viewer, so a cursor-anchored x makes them lurch sideways on commit.
+      // Vertically, anchor at the cursor.
       pendingZoom = {
         base: viewer.currentScale,
         factor: 1,
-        ax: e.clientX - rect.left,
+        ax: rect.width / 2,
         ay: e.clientY - rect.top,
         timer: null,
       };
       viewerEl.style.transformOrigin =
         `${container.scrollLeft + pendingZoom.ax}px ${container.scrollTop + pendingZoom.ay}px`;
     }
-    const target = Math.min(8, Math.max(0.25, pendingZoom.base * pendingZoom.factor * Math.pow(1.0015, -e.deltaY)));
+    // Steeper curve than the raw delta, clamped per event so trackpad pinches
+    // feel responsive without single mouse-wheel notches jumping too far.
+    const step = Math.min(1.25, Math.max(0.8, Math.exp(-e.deltaY * 0.008)));
+    const target = Math.min(8, Math.max(0.25, pendingZoom.base * pendingZoom.factor * step));
     pendingZoom.factor = target / pendingZoom.base;
     viewerEl.style.transform = `scale(${pendingZoom.factor})`;
     clearTimeout(pendingZoom.timer);
