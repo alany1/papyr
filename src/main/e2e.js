@@ -37,6 +37,8 @@ async function run(win) {
   const originalUi = { ...(config.get().ui || {}) };
   let notePath = null;
   let originalNote = null;
+  const viewerFrame = () =>
+    win.webContents.mainFrame.frames.find((f) => f.url.includes('pdfviewer/viewer.html'));
 
   try {
     // Seed an empty (isolated) library; the watcher delivers these to the sidebar.
@@ -65,8 +67,13 @@ async function run(win) {
     await js(`document.querySelector('#paper-list li.paper').click()`);
     await sleep(1200);
     const iframeSrc = await js(`document.getElementById('pdf-frame').src`);
-    check('pdf iframe points at papyr://', iframeSrc.startsWith('papyr://library/papers/'), iframeSrc);
-    check('pdf viewer chrome hidden', iframeSrc.includes('#toolbar=0'), iframeSrc);
+    check('pdf iframe points at bundled viewer',
+      iframeSrc.startsWith('papyr://app/pdfviewer/viewer.html?file='), iframeSrc);
+    await sleep(2000); // pdf.js worker + render
+    const pageCount = await viewerFrame()?.executeJavaScript(
+      `document.querySelectorAll('.pdfViewer .page').length`
+    );
+    check('pdf.js renders pages', pageCount >= 1, `pages=${pageCount}`);
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 
     // 2b. Assistant context: CLAUDE.md present, state.json tracks the selection
@@ -218,7 +225,9 @@ async function run(win) {
     `);
     await sleep(400);
     check('pane docked below assistant', await js(`
-      document.getElementById('note-pane').parentElement === document.getElementById('term-pane').parentElement
+      (() => { const n = document.getElementById('note-pane').getBoundingClientRect();
+        const t = document.getElementById('term-pane').getBoundingClientRect();
+        return Math.abs(n.left - t.left) < 2 && n.top > t.bottom; })()
     `));
     const layoutAfterDock = JSON.parse(
       fs.readFileSync(path.join(app.getPath('userData'), 'config.json'), 'utf8')
@@ -241,26 +250,33 @@ async function run(win) {
     `);
     await sleep(400);
     const fills = await js(`
-      (() => { const note = document.getElementById('note-pane');
-        const col = note.parentElement;
-        return { pane: note.getBoundingClientRect().height, col: col.getBoundingClientRect().height,
-                 lone: col.children.length === 1 }; })()
+      (() => { const note = document.getElementById('note-pane').getBoundingClientRect();
+        const cols = document.getElementById('columns').getBoundingClientRect();
+        return { pane: note.height, col: cols.height }; })()
     `);
     check('lone pane fills its column (no dead space)',
-      fills.lone && Math.abs(fills.pane - fills.col) < 2, JSON.stringify(fills));
+      Math.abs(fills.pane - fills.col) < 2, JSON.stringify(fills));
+
+    // 5c-iii. PDF dark pages toggle (applied inside the viewer frame)
     await js(`document.getElementById('pdf-dark').click()`);
-    check('pdf dark mode applies filter', await js(`
-      getComputedStyle(document.getElementById('pdf-frame')).filter !== 'none'
-    `));
+    await sleep(300);
+    check('pdf dark mode applied in viewer', await viewerFrame()?.executeJavaScript(
+      `document.documentElement.classList.contains('papyr-dark')`
+    ));
     check('pdf dark persisted', JSON.parse(
       fs.readFileSync(path.join(app.getPath('userData'), 'config.json'), 'utf8')
     ).ui.pdfDark === true);
     await js(`document.getElementById('pdf-dark').click()`);
-    check('pdf dark toggles off', await js(`
-      getComputedStyle(document.getElementById('pdf-frame')).filter === 'none'
-    `));
+    await sleep(300);
+    check('pdf dark toggles off', (await viewerFrame()?.executeJavaScript(
+      `document.documentElement.classList.contains('papyr-dark')`
+    )) === false);
 
-    // 5c-iv. Minimize / restore panes
+    // 5c-iv. Minimize / restore panes — the PDF must NOT reload through any of it
+    await js(`
+      (() => { window.__pdfLoads = 0;
+        document.getElementById('pdf-frame').addEventListener('load', () => window.__pdfLoads++); })()
+    `);
     await js(`document.querySelector('#note-pane .pane-min').click()`);
     await sleep(300);
     check('minimized pane hidden', await js(`document.getElementById('note-pane').clientWidth === 0`));
@@ -286,6 +302,8 @@ async function run(win) {
     check('all panes restored', await js(`
       ['pdf', 'note', 'term'].every(id => document.getElementById(id + '-pane').clientWidth > 0)
     `));
+    check('pdf did not reload during minimize/restore', (await js(`window.__pdfLoads`)) === 0,
+      `loads=${await js(`window.__pdfLoads`)}`);
 
     // 5d. Close-flush: an unsaved edit is written before the window would close
     await js(`
@@ -340,7 +358,7 @@ async function run(win) {
 
     // 7. papyr:// traversal is rejected
     const status = await js(`
-      fetch('papyr://library/papers/..%2F..%2Fconfig.json').then(r => r.status).catch(() => 'network-error')
+      fetch('papyr://app/papers/..%2F..%2Fconfig.json').then(r => r.status).catch(() => 'network-error')
     `);
     check('traversal rejected', status === 403 || status === 404 || status === 'network-error', `status=${status}`);
   } catch (err) {

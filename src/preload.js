@@ -7,10 +7,11 @@ contextBridge.exposeInMainWorld('papyr', {
   listPapers: () => ipcRenderer.invoke('library:list'),
   loadNote: (base) => ipcRenderer.invoke('note:load', base),
   saveNote: (base, content) => ipcRenderer.invoke('note:save', base, content),
-  // #toolbar=0 strips the viewer chrome (toolbar + thumbnail panel); scroll and
-  // pinch / Ctrl+scroll zoom still work.
-  pdfUrl: (relPath) =>
-    `papyr://library/papers/${relPath.split('/').map(encodeURIComponent).join('/')}#toolbar=0&view=FitH`,
+  // Our bundled pdf.js viewer, loading the paper same-origin over papyr://
+  pdfUrl: (relPath) => {
+    const fileUrl = `papyr://app/papers/${relPath.split('/').map(encodeURIComponent).join('/')}`;
+    return `papyr://app/pdfviewer/viewer.html?file=${encodeURIComponent(fileUrl)}`;
+  },
   movePaper: (relPath, targetCollection) => ipcRenderer.invoke('paper:move', relPath, targetCollection),
   createCollection: (name) => ipcRenderer.invoke('collection:create', name),
   renameCollection: (oldName, newName) => ipcRenderer.invoke('collection:rename', oldName, newName),

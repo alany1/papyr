@@ -25,28 +25,67 @@ const ipc = require('./ipc');
 let win = null;
 let closeFlushed = false;
 
-// papyr://library/papers/[<collection>/]<encoded pdf name> — serves PDFs from
-// inside the library only.
+const MIME = {
+  '.pdf': 'application/pdf',
+  '.html': 'text/html',
+  '.mjs': 'text/javascript',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.map': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.gif': 'image/gif',
+  '.bcmap': 'application/octet-stream',
+  '.wasm': 'application/wasm',
+  '.ftl': 'text/plain',
+  '.properties': 'text/plain',
+  '.icc': 'application/octet-stream',
+  '.pfb': 'application/octet-stream',
+};
+
+// Static roots served under papyr://app/<root>/… — the bundled pdf.js viewer.
+// Single host keeps everything same-origin so module imports and the PDF
+// fetch work without CORS.
+const STATIC_ROOTS = {
+  pdfjs: path.join(__dirname, '..', '..', 'node_modules', 'pdfjs-dist'),
+  pdfviewer: path.join(__dirname, '..', 'renderer', 'pdfviewer'),
+};
+
+function serveFile(abs, mime) {
+  return net.fetch(pathToFileURL(abs).toString()).then((res) => {
+    if (process.env.PAPYR_DEBUG) console.log('papyr:// response:', res.status, 'for', abs);
+    return new Response(res.body, { status: res.status, headers: { 'Content-Type': mime } });
+  });
+}
+
+// papyr://app/papers/[<collection>/]<pdf> — PDFs from inside the library only.
+// papyr://app/{pdfjs,pdfviewer}/… — the viewer's static assets.
 function handlePapyrRequest(request) {
   if (process.env.PAPYR_DEBUG) console.log('papyr:// request:', request.url);
   const url = new URL(request.url);
   const segments = url.pathname.split('/').filter(Boolean).map(decodeURIComponent);
-  if (url.host !== 'library' || segments[0] !== 'papers' || segments.length < 2 || segments.length > 3) {
+  if (url.host !== 'app' || segments.length < 2) {
     return new Response('Not found', { status: 404 });
   }
-  const lib = config.get().libraryPath;
-  const papersRoot = path.join(lib, 'papers');
-  const abs = path.resolve(papersRoot, ...segments.slice(1));
-  if (!abs.startsWith(papersRoot + path.sep) || !abs.toLowerCase().endsWith('.pdf')) {
+  const [root, ...rest] = segments;
+  if (root === 'papers') {
+    if (rest.length > 2) return new Response('Not found', { status: 404 });
+    const papersRoot = path.join(config.get().libraryPath, 'papers');
+    const abs = path.resolve(papersRoot, ...rest);
+    if (!abs.startsWith(papersRoot + path.sep) || !abs.toLowerCase().endsWith('.pdf')) {
+      return new Response('Forbidden', { status: 403 });
+    }
+    return serveFile(abs, 'application/pdf');
+  }
+  const staticRoot = STATIC_ROOTS[root];
+  if (!staticRoot) return new Response('Not found', { status: 404 });
+  const abs = path.resolve(staticRoot, ...rest);
+  const mime = MIME[path.extname(abs).toLowerCase()];
+  if (!abs.startsWith(staticRoot + path.sep) || !mime) {
     return new Response('Forbidden', { status: 403 });
   }
-  return net.fetch(pathToFileURL(abs).toString()).then((res) => {
-    if (process.env.PAPYR_DEBUG) console.log('papyr:// response:', res.status, 'for', abs);
-    return new Response(res.body, {
-      status: res.status,
-      headers: { 'Content-Type': 'application/pdf' },
-    });
-  });
+  return serveFile(abs, mime);
 }
 
 function createWindow() {

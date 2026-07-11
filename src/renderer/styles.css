@@ -122,15 +122,8 @@ button { font-family: var(--font-ui); }
 #columns {
   flex: 1;
   min-width: 0;
-  display: flex;
+  position: relative; /* panes + dividers are absolutely positioned inside */
 }
-.layout-col {
-  display: flex;
-  flex-direction: column;
-  flex-basis: 0;
-  min-width: 0;
-}
-.layout-col .pane { flex-basis: 0; min-height: 0; }
 
 .pane {
   min-width: 0;
@@ -141,9 +134,12 @@ button { font-family: var(--font-ui); }
   display: flex;
   flex-direction: column;
 }
+#columns .pane { position: absolute; }
+#columns .pane.minimized { display: none; }
 
-#sidebar-divider, .vdivider { width: 8px; cursor: col-resize; flex: none; position: relative; }
-.hdivider { height: 8px; cursor: row-resize; flex: none; position: relative; }
+#sidebar-divider { width: 8px; cursor: col-resize; flex: none; position: relative; }
+.vdivider { position: absolute; cursor: col-resize; }
+.hdivider { position: absolute; cursor: row-resize; }
 #sidebar-divider::after, .vdivider::after {
   content: "";
   position: absolute;
@@ -427,14 +423,6 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   display: none;
 }
 #pdf-frame.visible { display: block; }
-/* dark pages: invert the viewer surface; hue-rotate keeps figures roughly true.
-   The negative margin crops the viewer's edge lines, which invert to bright. */
-#pdf-pane.pdf-dark #pdf-frame.visible {
-  filter: invert(0.91) hue-rotate(180deg) contrast(0.95);
-  width: calc(100% + 12px);
-  height: calc(100% + 12px);
-  margin: -6px;
-}
 #pdf-empty {
   position: absolute;
   inset: 0;

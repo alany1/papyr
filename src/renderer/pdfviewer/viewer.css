@@ -1,0 +1,41 @@
+:root {
+  --papyr-bg: #241f1a;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--papyr-bg);
+  overflow: hidden;
+}
+
+#viewerContainer {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: #3b332a;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: #6d6153; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* pages float on the app background — no borders, soft gaps */
+.pdfViewer .page {
+  border: none;
+  box-shadow: none;
+  margin: 4px auto;
+  border-radius: 2px;
+}
+
+/* dark pages: invert only the page stack (canvas + text layer) */
+.papyr-dark .pdfViewer .page {
+  filter: invert(0.91) hue-rotate(180deg);
+}

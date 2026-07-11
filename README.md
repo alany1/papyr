@@ -3,8 +3,9 @@
 A local, single-window research workspace with three panes: the paper, its note, and a
 Claude Code assistant that can see every paper and note.
 
-- **Paper pane** — the selected PDF, rendered chromeless by Chromium's built-in viewer
-  (scroll, pinch-zoom and Ctrl+scroll zoom work; no toolbar clutter).
+- **Paper pane** — the selected PDF, rendered by a bundled pdf.js viewer styled to match
+  the app: no toolbar, seamless page gaps, themed scrollbars, pinch / Ctrl+scroll zoom,
+  and a dark-pages mode that inverts only the page content.
 - **Note pane** — the markdown note paired with that paper (`papers/foo.pdf` ↔ `notes/foo.md`).
   Notes are created on first selection and autosaved as you type. Reading mode renders
   markdown + LaTeX (KaTeX, `$…$` and `$$…$$`) Obsidian-style; toggle edit/reading with the

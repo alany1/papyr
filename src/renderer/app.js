@@ -143,16 +143,24 @@
   Layout.init(ui);
   Note.init(ui.noteMode);
 
-  // Dark pages for the PDF viewer
+  // Dark pages for the PDF viewer (the viewer applies the filter inside its frame)
   const pdfPane = document.getElementById('pdf-pane');
   const pdfDarkBtn = document.getElementById('pdf-dark');
+  function sendPdfDark() {
+    pdfFrame.contentWindow?.postMessage(
+      { type: 'papyr-dark', on: pdfPane.classList.contains('pdf-dark') },
+      '*'
+    );
+  }
   function setPdfDark(on) {
     pdfPane.classList.toggle('pdf-dark', on);
     pdfDarkBtn.textContent = on ? '☀' : '☾';
     window.papyr.setUi({ pdfDark: on });
+    sendPdfDark();
   }
   setPdfDark(ui.pdfDark === true);
   pdfDarkBtn.addEventListener('click', () => setPdfDark(!pdfPane.classList.contains('pdf-dark')));
+  pdfFrame.addEventListener('load', sendPdfDark);
   Sidebar.init({
     onSelect: selectPaper,
     onChangeLibrary: changeLibrary,

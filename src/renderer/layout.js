@@ -1,9 +1,14 @@
 // Dockable pane layout: columns of vertically stacked panes. Panes are dragged
 // by their headers; dropping on a pane's left/right edge makes a new column,
 // dropping on its top/bottom half splits that column vertically.
+//
+// Panes are absolutely positioned and NEVER reparented — reparenting an
+// <iframe> forces Chromium to reload it, which made rearranging/minimizing
+// reload the PDF. Structure changes only rebuild the cheap divider elements.
 const Layout = (() => {
   const PANE_IDS = ['pdf', 'note', 'term'];
   const LABELS = { pdf: 'paper', note: 'note', term: 'assistant' };
+  const GAP = 8;
   const MIN_COL_PX = 150;
   const MIN_PANE_PX = 110;
 
@@ -13,12 +18,10 @@ const Layout = (() => {
   const overlay = document.getElementById('drag-overlay');
   const ghost = document.getElementById('pane-ghost');
   const indicator = document.getElementById('drop-indicator');
+  const dockEl = document.getElementById('minimized-dock');
   const root = document.documentElement;
 
   const paneEls = Object.fromEntries(PANE_IDS.map((id) => [id, document.getElementById(`${id}-pane`)]));
-
-  const paneStore = document.getElementById('pane-store');
-  const dockEl = document.getElementById('minimized-dock');
 
   const DEFAULT = () => ({
     columns: [
@@ -30,7 +33,8 @@ const Layout = (() => {
   });
 
   let state = DEFAULT();
-  let colDivs = [];
+  let vDividers = []; // index i sits between column i and i+1
+  let hDividers = new Map(); // "ci:pi" -> divider between pane pi and pi+1 of column ci
 
   function validate(s) {
     if (!s || !Array.isArray(s.columns) || s.columns.length === 0) return null;
@@ -53,9 +57,7 @@ const Layout = (() => {
     return seen.size === PANE_IDS.length ? s : null;
   }
 
-  // flex-grow sums below 1 only fill that fraction of the free space, leaving
-  // dead area — rescale so pane sizes in a column sum to the pane count and
-  // column sizes sum to a fixed total, preserving proportions.
+  // flex-style grow units; keep sums stable so proportions can't collapse
   function normalize(s) {
     const colSum = s.columns.reduce((a, c) => a + c.size, 0);
     for (const col of s.columns) {
@@ -67,6 +69,77 @@ const Layout = (() => {
 
   function persist() {
     window.papyr.setUi({ layout: JSON.parse(JSON.stringify(state)) });
+  }
+
+  // ---- Geometry ----
+
+  function layoutRects() {
+    const W = columnsEl.clientWidth;
+    const H = columnsEl.clientHeight;
+    if (W <= 0 || H <= 0) return;
+    const cols = state.columns;
+    const colUnits = cols.reduce((a, c) => a + c.size, 0);
+    const usableW = W - GAP * (cols.length - 1);
+    let x = 0;
+    cols.forEach((col, ci) => {
+      const w = (usableW * col.size) / colUnits;
+      const paneUnits = col.panes.reduce((a, p) => a + p.size, 0);
+      const usableH = H - GAP * (col.panes.length - 1);
+      let y = 0;
+      col.panes.forEach((pane, pi) => {
+        const h = (usableH * pane.size) / paneUnits;
+        Object.assign(paneEls[pane.id].style, {
+          left: `${x}px`,
+          top: `${y}px`,
+          width: `${w}px`,
+          height: `${h}px`,
+        });
+        if (pi < col.panes.length - 1) {
+          Object.assign(hDividers.get(`${ci}:${pi}`).style, {
+            left: `${x}px`,
+            top: `${y + h}px`,
+            width: `${w}px`,
+            height: `${GAP}px`,
+          });
+        }
+        y += h + GAP;
+      });
+      if (ci < cols.length - 1) {
+        Object.assign(vDividers[ci].style, {
+          left: `${x + w}px`,
+          top: '0px',
+          width: `${GAP}px`,
+          height: `${H}px`,
+        });
+      }
+      x += w + GAP;
+    });
+  }
+
+  function render() {
+    for (const d of vDividers) d.remove();
+    for (const d of hDividers.values()) d.remove();
+    vDividers = [];
+    hDividers = new Map();
+    state.columns.forEach((col, ci) => {
+      if (ci < state.columns.length - 1) {
+        const d = makeVDivider(ci);
+        vDividers.push(d);
+        columnsEl.appendChild(d);
+      }
+      col.panes.forEach((_p, pi) => {
+        if (pi < col.panes.length - 1) {
+          const d = makeHDivider(ci, pi);
+          hDividers.set(`${ci}:${pi}`, d);
+          columnsEl.appendChild(d);
+        }
+      });
+    });
+    for (const id of PANE_IDS) {
+      paneEls[id].classList.toggle('minimized', state.minimized.includes(id));
+    }
+    renderDock();
+    layoutRects();
   }
 
   function renderDock() {
@@ -81,27 +154,6 @@ const Layout = (() => {
       chip.addEventListener('click', () => restore(id));
       dockEl.appendChild(chip);
     }
-  }
-
-  function render() {
-    columnsEl.textContent = '';
-    colDivs = [];
-    for (const id of state.minimized) paneStore.appendChild(paneEls[id]);
-    renderDock();
-    state.columns.forEach((col, ci) => {
-      if (ci > 0) columnsEl.appendChild(makeVDivider(ci - 1));
-      const colDiv = document.createElement('div');
-      colDiv.className = 'layout-col';
-      colDiv.style.flexGrow = col.size;
-      col.panes.forEach((pane, pi) => {
-        if (pi > 0) colDiv.appendChild(makeHDivider(ci, pi - 1));
-        const el = paneEls[pane.id];
-        el.style.flexGrow = pane.size;
-        colDiv.appendChild(el);
-      });
-      colDivs.push(colDiv);
-      columnsEl.appendChild(colDiv);
-    });
   }
 
   // ---- Resize dividers ----
@@ -130,23 +182,24 @@ const Layout = (() => {
     const div = document.createElement('div');
     div.className = 'vdivider';
     div.addEventListener('pointerdown', () => {
-      const left = state.columns[leftIndex];
-      const right = state.columns[leftIndex + 1];
-      const leftPx = colDivs[leftIndex].getBoundingClientRect().width;
-      const rightPx = colDivs[leftIndex + 1].getBoundingClientRect().width;
-      const perUnit = (leftPx + rightPx) / (left.size + right.size);
-      const total = left.size + right.size;
-      const minUnits = MIN_COL_PX / perUnit;
-      div._drag = { left, right, leftPx, perUnit, total, minUnits };
+      const cols = state.columns;
+      const colUnits = cols.reduce((a, c) => a + c.size, 0);
+      const usableW = columnsEl.clientWidth - GAP * (cols.length - 1);
+      div._drag = {
+        left: cols[leftIndex],
+        right: cols[leftIndex + 1],
+        origLeft: cols[leftIndex].size,
+        unitsPerPx: colUnits / usableW,
+        total: cols[leftIndex].size + cols[leftIndex + 1].size,
+        minUnits: MIN_COL_PX * (colUnits / usableW),
+      };
     }, { capture: true });
     trackDrag(div, (dx) => {
       const d = div._drag;
-      let leftSize = (d.leftPx + dx) / d.perUnit;
-      leftSize = Math.min(d.total - d.minUnits, Math.max(d.minUnits, leftSize));
+      const leftSize = Math.min(d.total - d.minUnits, Math.max(d.minUnits, d.origLeft + dx * d.unitsPerPx));
       d.left.size = leftSize;
       d.right.size = d.total - leftSize;
-      colDivs[state.columns.indexOf(d.left)].style.flexGrow = d.left.size;
-      colDivs[state.columns.indexOf(d.right)].style.flexGrow = d.right.size;
+      layoutRects();
     });
     return div;
   }
@@ -156,21 +209,23 @@ const Layout = (() => {
     div.className = 'hdivider';
     div.addEventListener('pointerdown', () => {
       const col = state.columns[colIndex];
-      const top = col.panes[topIndex];
-      const bottom = col.panes[topIndex + 1];
-      const topPx = paneEls[top.id].getBoundingClientRect().height;
-      const bottomPx = paneEls[bottom.id].getBoundingClientRect().height;
-      const perUnit = (topPx + bottomPx) / (top.size + bottom.size);
-      div._drag = { top, bottom, topPx, perUnit, total: top.size + bottom.size, minUnits: MIN_PANE_PX / perUnit };
+      const paneUnits = col.panes.reduce((a, p) => a + p.size, 0);
+      const usableH = columnsEl.clientHeight - GAP * (col.panes.length - 1);
+      div._drag = {
+        top: col.panes[topIndex],
+        bottom: col.panes[topIndex + 1],
+        origTop: col.panes[topIndex].size,
+        unitsPerPx: paneUnits / usableH,
+        total: col.panes[topIndex].size + col.panes[topIndex + 1].size,
+        minUnits: MIN_PANE_PX * (paneUnits / usableH),
+      };
     }, { capture: true });
     trackDrag(div, (_dx, dy) => {
       const d = div._drag;
-      let topSize = (d.topPx + dy) / d.perUnit;
-      topSize = Math.min(d.total - d.minUnits, Math.max(d.minUnits, topSize));
+      const topSize = Math.min(d.total - d.minUnits, Math.max(d.minUnits, d.origTop + dy * d.unitsPerPx));
       d.top.size = topSize;
       d.bottom.size = d.total - topSize;
-      paneEls[d.top.id].style.flexGrow = d.top.size;
-      paneEls[d.bottom.id].style.flexGrow = d.bottom.size;
+      layoutRects();
     });
     return div;
   }
@@ -220,6 +275,16 @@ const Layout = (() => {
     indicator.hidden = false;
   }
 
+  function removePane(s, id) {
+    let removed = null;
+    for (const col of s.columns) {
+      const i = col.panes.findIndex((p) => p.id === id);
+      if (i >= 0) removed = col.panes.splice(i, 1)[0];
+    }
+    s.columns = s.columns.filter((c) => c.panes.length > 0);
+    return removed;
+  }
+
   function applyMove(id, target, zone) {
     const next = JSON.parse(JSON.stringify(state));
     const dragged = removePane(next, id);
@@ -245,16 +310,6 @@ const Layout = (() => {
   }
 
   // ---- Minimize / restore ----
-
-  function removePane(s, id) {
-    let removed = null;
-    for (const col of s.columns) {
-      const i = col.panes.findIndex((p) => p.id === id);
-      if (i >= 0) removed = col.panes.splice(i, 1)[0];
-    }
-    s.columns = s.columns.filter((c) => c.panes.length > 0);
-    return removed;
-  }
 
   function minimize(id) {
     if (state.minimized.includes(id)) return;
@@ -320,9 +375,10 @@ const Layout = (() => {
 
   function init(ui) {
     state = validate(ui.layout) || DEFAULT();
-    normalize(state); // heals fractional layouts saved before normalization existed
+    normalize(state);
     initSidebar(ui.sidebarWidth);
     render();
+    new ResizeObserver(() => layoutRects()).observe(columnsEl);
     PANE_IDS.forEach(initHeaderDrag);
     document.querySelectorAll('.pane-min').forEach((btn) => {
       btn.addEventListener('click', () => minimize(btn.dataset.pane));
