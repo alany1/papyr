@@ -55,8 +55,11 @@ function commitZoom() {
   viewer.currentScale = base * factor;
   if (ref) {
     const apply = () => {
-      container.scrollTop = ref.offsetTop + fy * ref.offsetHeight - ay;
-      container.scrollLeft = ref.offsetLeft + fx * ref.offsetWidth - ax;
+      // The preview's transform-origin lives in the viewer element's local
+      // space, offset from content space by the collapsed first-page margin —
+      // compensate so the committed position matches the preview exactly.
+      container.scrollTop = ref.offsetTop + fy * ref.offsetHeight - ay - viewerEl.offsetTop;
+      container.scrollLeft = ref.offsetLeft + fx * ref.offsetWidth - ax - viewerEl.offsetLeft;
     };
     apply();
     requestAnimationFrame(apply); // pdf.js may adjust scroll async after rescale
@@ -71,27 +74,50 @@ container.addEventListener(
     fitWidth = false;
     if (!pendingZoom) {
       const rect = container.getBoundingClientRect();
-      // Anchor horizontally at the viewport center: pages are centered in the
-      // viewer, so a cursor-anchored x makes them lurch sideways on commit.
-      // Vertically, anchor at the cursor.
+      // Horizontal anchor at the content center, vertical at the cursor.
+      const ax = container.clientWidth / 2;
+      const ay = e.clientY - rect.top;
+      const anchorX = container.scrollLeft + ax;
+      const anchorY = container.scrollTop + ay;
+      let ref = null;
+      for (const p of viewerEl.querySelectorAll('.page')) {
+        ref = p;
+        if (anchorY < p.offsetTop + p.offsetHeight) break;
+      }
       pendingZoom = {
         base: viewer.currentScale,
         factor: 1,
-        ax: rect.width / 2,
-        ay: e.clientY - rect.top,
+        ax,
+        ay,
         timer: null,
+        scroll0: container.scrollLeft,
+        refL: ref ? ref.offsetLeft : 0,
+        refW: ref ? ref.offsetWidth : container.clientWidth,
+        fx: ref ? (anchorX - ref.offsetLeft) / ref.offsetWidth : 0.5,
       };
-      viewerEl.style.transformOrigin =
-        `${container.scrollLeft + pendingZoom.ax}px ${container.scrollTop + pendingZoom.ay}px`;
+      viewerEl.style.transformOrigin = `${anchorX}px ${anchorY}px`;
     }
     // Steeper curve than the raw delta, clamped per event so trackpad pinches
     // feel responsive without single mouse-wheel notches jumping too far.
     const step = Math.min(1.25, Math.max(0.8, Math.exp(-e.deltaY * 0.008)));
-    const target = Math.min(8, Math.max(0.25, pendingZoom.base * pendingZoom.factor * step));
-    pendingZoom.factor = target / pendingZoom.base;
-    viewerEl.style.transform = `scale(${pendingZoom.factor})`;
-    clearTimeout(pendingZoom.timer);
-    pendingZoom.timer = setTimeout(commitZoom, 180);
+    const z = pendingZoom;
+    const target = Math.min(8, Math.max(0.25, z.base * z.factor * step));
+    z.factor = target / z.base;
+    // Predict where the commit will put the page horizontally — centering
+    // (margin auto) and scroll clamping make a pure scale() preview land
+    // somewhere else, which showed up as a sideways snap at commit time.
+    const clientW = container.clientWidth;
+    const pageW = z.refW * z.factor;
+    const viewerW = Math.max(clientW, pageW);
+    const committedLeft = (viewerW - pageW) / 2;
+    const desiredScroll = committedLeft + z.fx * pageW - z.ax;
+    const committedScroll = Math.min(Math.max(0, desiredScroll), Math.max(0, viewerW - clientW));
+    const committedVisualLeft = committedLeft - committedScroll;
+    const previewVisualLeft = z.ax + (z.refL - z.scroll0 - z.ax) * z.factor;
+    const tx = committedVisualLeft - previewVisualLeft;
+    viewerEl.style.transform = `translateX(${tx}px) scale(${z.factor})`;
+    clearTimeout(z.timer);
+    z.timer = setTimeout(commitZoom, 180);
   },
   { passive: false }
 );

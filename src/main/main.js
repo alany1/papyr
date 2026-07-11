@@ -152,6 +152,15 @@ function createWindow() {
           if (result !== undefined) console.log('PAPYR_SCREENSHOT_JS:', JSON.stringify(result));
           await new Promise((r) => setTimeout(r, 400));
         }
+        if (process.env.PAPYR_FRAME_JS) {
+          const frame = win.webContents.mainFrame.frames.find((f) => f.url.includes('pdfviewer/viewer.html'));
+          if (frame) {
+            const result = await frame.executeJavaScript(process.env.PAPYR_FRAME_JS, true);
+            console.log('PAPYR_FRAME_JS:', JSON.stringify(result));
+          } else {
+            console.log('PAPYR_FRAME_JS: no viewer frame');
+          }
+        }
         // An occluded window may never composite out-of-process frames (the PDF
         // viewer), leaving them blank in captures; bring the window to the front
         // so the capture reflects what a visible window shows.
