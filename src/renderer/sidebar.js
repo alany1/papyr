@@ -44,6 +44,16 @@ const Sidebar = (() => {
       e.stopPropagation();
       startRenameInput(li, paper.base, (name) => handlers.onRenamePaper(paper, name));
     });
+    // the glyph comes from CSS content so li.textContent stays the bare name
+    const del = document.createElement('button');
+    del.className = 'paper-delete';
+    del.title = 'Move paper and its note to the Trash';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handlers.onDelete(paper);
+    });
+    del.addEventListener('dblclick', (e) => e.stopPropagation());
+    li.appendChild(del);
     makeDropTarget(li, paper.collection); // dropping on a paper files it into that paper's group
     return li;
   }

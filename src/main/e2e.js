@@ -445,6 +445,18 @@ async function run(win) {
     check('autosave targets the renamed note',
       fs.readFileSync(path.join(lib(), 'notes', 'E2E Renamed Paper.md'), 'utf8').includes('renamed-note-marker'));
 
+    // 5g. Delete the selected paper: PDF and note leave the library (to Trash;
+    // the confirm dialog is bypassed under PAPYR_E2E), selection clears
+    await js(`document.querySelector('#paper-list li.selected .paper-delete').click()`);
+    await sleep(1200);
+    check('deleted pdf gone from library', !fs.existsSync(path.join(lib(), 'papers', 'E2E Renamed Paper.pdf')));
+    check('deleted note gone from library', !fs.existsSync(path.join(lib(), 'notes', 'E2E Renamed Paper.md')));
+    check('selection cleared after delete', await js(`!document.querySelector('#paper-list li.selected')`));
+    check('note pane closed after delete', await js(`document.getElementById('note-editor').disabled`));
+    check('deleted paper out of sidebar', !(await js(
+      `[...document.querySelectorAll('#paper-list li.paper')].some(li => li.title === 'E2E Renamed Paper.pdf')`
+    )));
+
     // 6. Terminal: pty running and xterm received output
     check('pty running', ptyManager.isRunning());
     const termText = await js(`

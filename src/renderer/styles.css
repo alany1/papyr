@@ -416,8 +416,27 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   padding: 6px 10px;
   border-radius: 8px;
   margin: 1px 0;
+  position: relative;
+  padding-right: 26px;
 }
 #paper-list li.paper:hover { background: var(--bg-hover); }
+.paper-delete::before { content: '✕'; }
+.paper-delete {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: none;
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+#paper-list li.paper:hover .paper-delete { display: block; }
+.paper-delete:hover { color: var(--rose); background: var(--bg-inset); }
 #paper-list li.selected { background: var(--bg-active); color: #ffe9cf; }
 
 #paper-list li.collection-header {

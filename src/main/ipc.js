@@ -1,4 +1,6 @@
-const { ipcMain, dialog } = require('electron');
+const { ipcMain, dialog, shell } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const config = require('./config');
 const library = require('./library');
 const importer = require('./importer');
@@ -87,6 +89,32 @@ function register(win) {
       }
       delete result.noteContent;
       return { ok: true, ...result };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
+  // Moves the paper and its paired note to the system Trash (recoverable).
+  ipcMain.handle('paper:delete', async (_e, relPath) => {
+    try {
+      const lib = config.get().libraryPath;
+      const pdf = library.paperPath(lib, relPath);
+      const base = path.basename(pdf, '.pdf');
+      if (!process.env.PAPYR_E2E) {
+        const { response } = await dialog.showMessageBox(win, {
+          type: 'warning',
+          buttons: ['Move to Trash', 'Cancel'],
+          defaultId: 0,
+          cancelId: 1,
+          message: `Move "${base}" to the Trash?`,
+          detail: 'Its note goes with it. Both can be restored from the Trash.',
+        });
+        if (response !== 0) return { ok: true, cancelled: true };
+      }
+      await shell.trashItem(pdf);
+      const note = library.notePath(lib, base);
+      if (fs.existsSync(note)) await shell.trashItem(note);
+      return { ok: true, base };
     } catch (err) {
       return { ok: false, error: err.message };
     }

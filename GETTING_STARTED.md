@@ -53,7 +53,8 @@ after installing, press any key in the pane to retry.
   link — arXiv papers are named by their actual title. You can also drop PDFs
   straight into `~/Papyr/papers/` in Finder.
 - **⌘B** toggles the paper list; click a paper to read it — its note opens
-  beside it and autosaves as you type. **⌘E** flips the note between editing
+  beside it and autosaves as you type. Hover a paper and click **✕** to delete
+  it (paper + note go to the Trash, so it's recoverable). **⌘E** flips the note between editing
   and rendered reading view (markdown + LaTeX).
 - **Ask the assistant** about what you're reading: it always knows which paper
   is open, so "summarize this paper" or "draft this paper's note" just works.

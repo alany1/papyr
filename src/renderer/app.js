@@ -141,6 +141,25 @@
     // the library watcher delivers the renamed listing
   }
 
+  async function deletePaper(paper) {
+    // Clear the selection first so no pending note autosave can recreate the
+    // note after it's trashed.
+    const wasSelected = selected && selected.relPath === paper.relPath;
+    if (wasSelected) clearSelection();
+    const result = await window.papyr.deletePaper(paper.relPath);
+    if (!result.ok) {
+      Sidebar.flashFooter(result.error || 'Delete failed');
+      if (wasSelected) selectPaper(paper).catch(console.error);
+      return;
+    }
+    if (result.cancelled) {
+      if (wasSelected) selectPaper(paper).catch(console.error);
+      return;
+    }
+    Sidebar.flashFooter(`"${result.base}" moved to Trash`);
+    Sidebar.setData(await window.papyr.listPapers());
+  }
+
   async function changeLibrary() {
     const result = await window.papyr.pickLibrary();
     if (!result) return;
@@ -188,6 +207,7 @@
     onToggleCollapse: toggleCollapse,
     onRenameCollection: renameCollection,
     onRenamePaper: renamePaperTo,
+    onDelete: (paper) => deletePaper(paper).catch(console.error),
   });
   Sidebar.setCollapsed(ui.collapsedCollections);
 
