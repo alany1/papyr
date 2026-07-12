@@ -28,8 +28,10 @@ npm run dist    # → dist/mac-arm64/Papyr.app and dist/Papyr-<version>-arm64.dm
 
 Drag `Papyr.app` into `/Applications` (or hand someone the `.dmg` along with
 [GETTING_STARTED.md](GETTING_STARTED.md)) and launch it from Spotlight like any
-other app. The app is unsigned, so on a Mac it wasn't
-built on, the first launch needs right-click → Open to get past Gatekeeper.
+other app. The app is unsigned, so a *downloaded* copy is quarantined and
+macOS calls it "damaged"; the recipient clears that once with
+`xattr -d com.apple.quarantine /Applications/Papyr.app` (a copy built on the
+same machine launches without any of this).
 
 ### From source
 

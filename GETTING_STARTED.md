@@ -8,9 +8,15 @@ Codex session that can see every paper and note in your library).
 
 Open the `.dmg` and drag **Papyr** into `Applications`.
 
-The app is unsigned, so the very first launch needs **right-click → Open**
-(a plain double-click shows a scary "cannot verify" warning — that's macOS
-Gatekeeper, not an actual problem). Only needed once.
+Because the app is unsigned, macOS will claim the downloaded copy is
+**"damaged and can't be opened"** — it isn't; that's Gatekeeper's wording for
+"not signed by a paid Apple developer account". Fix it once in Terminal:
+
+```sh
+xattr -d com.apple.quarantine /Applications/Papyr.app
+```
+
+After that it opens normally, forever.
 
 ## 2. Install the assistant CLI
 
