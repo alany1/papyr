@@ -78,6 +78,15 @@ async function run(win) {
     );
     check('pdf.js renders pages', pageCount >= 1, `pages=${pageCount}`);
 
+    // A fully occluded window never composites the PDF viewer frame (see the
+    // screenshot path in main.js): pdf.js stalls mid-re-render after the zoom
+    // below and the text layer stays hidden, breaking the selection tests.
+    // Bring the window frontmost right before the render-sensitive section
+    // (moveTop alone is not enough when the whole app is in the background).
+    win.moveTop();
+    require('electron').app.focus({ steal: true });
+    await sleep(300);
+
     // Ctrl+wheel zoom applies scale immediately (native smooth-zoom path)
     const zoom = await viewerFrame()?.executeJavaScript(`
       (async () => {
@@ -117,7 +126,11 @@ async function run(win) {
           }
           if (!selectedText) await new Promise(r => setTimeout(r, 150));
         }
-        if (!selectedText) return { error: 'selection never stuck' };
+        if (!selectedText) {
+          const layer = document.querySelector('.textLayer');
+          return { error: 'selection never stuck', layerHidden: layer?.hidden,
+                   pageClass: layer?.closest('.page')?.className, hasFocus: document.hasFocus() };
+        }
         window.dispatchEvent(new KeyboardEvent('keydown',
           { code: 'KeyK', metaKey: true, altKey: true, cancelable: true }));
         return { selected: selectedText };
