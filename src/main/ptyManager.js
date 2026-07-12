@@ -1,11 +1,15 @@
 const pty = require('node-pty');
 
-// Run claude through a login+interactive shell so the user's PATH (e.g. Homebrew)
-// is available even though GUI-launched Electron gets a minimal environment.
-const LAUNCH_CMD =
-  'if command -v claude >/dev/null 2>&1; then exec claude; ' +
-  'else echo "papyr: claude CLI not found on PATH."; ' +
-  'echo "Install Claude Code, then press any key here to retry."; exit 127; fi';
+// Run the assistant CLI through a login+interactive shell so the user's PATH
+// (e.g. Homebrew) is available even though GUI-launched Electron gets a
+// minimal environment.
+function launchCmd(bin) {
+  return (
+    `if command -v ${bin} >/dev/null 2>&1; then exec ${bin}; ` +
+    `else echo "papyr: ${bin} CLI not found on PATH."; ` +
+    `echo "Install ${bin}, then press any key here to retry."; exit 127; fi`
+  );
+}
 
 let proc = null;
 let onData = null;
@@ -20,10 +24,10 @@ function isRunning() {
   return proc !== null;
 }
 
-function start({ cols, rows, cwd }) {
+function start({ cols, rows, cwd, command }) {
   if (proc) return { ok: true, alreadyRunning: true };
   const shell = process.env.SHELL || '/bin/zsh';
-  const p = pty.spawn(shell, ['-il', '-c', LAUNCH_CMD], {
+  const p = pty.spawn(shell, ['-il', '-c', launchCmd(command || 'claude')], {
     name: 'xterm-256color',
     cols: Math.max(2, cols || 80),
     rows: Math.max(2, rows || 24),

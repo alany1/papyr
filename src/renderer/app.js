@@ -156,7 +156,7 @@
     TermPane.fit();
   }
 
-  const { libraryPath, ui = {} } = await window.papyr.getConfig();
+  const { libraryPath, ui = {}, assistant, assistants } = await window.papyr.getConfig();
 
   Layout.init(ui);
   Note.init(ui.noteMode);
@@ -222,18 +222,7 @@
   document.getElementById('sidebar-toggle').addEventListener('click', () => {
     setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
   });
-  window.addEventListener('keydown', (e) => {
-    if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
-    if (e.key === 'b') {
-      e.preventDefault();
-      setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
-    } else if (e.key === 'e') {
-      e.preventDefault();
-      Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
-    }
-  });
-
-  // ⌘⌥K: quote the current selection into the assistant input and focus it.
+  // Quote the current selection into the assistant input and focus it (⌘⌥K).
   // The PDF viewer forwards its selection via postMessage; a selection in the
   // note pane is quoted directly; with no selection it just jumps focus.
   function quoteToAssistant(text, source) {
@@ -252,13 +241,33 @@
       quoteToAssistant(d.text, source);
     }
   });
-  window.addEventListener('keydown', (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyK') {
-      e.preventDefault();
-      const text = window.getSelection()?.toString() || '';
-      quoteToAssistant(text, selected ? `${selected.base}, note` : 'note');
-    }
+  Shortcuts.add('toggle-sidebar', 'toggle paper list', 'Mod+B', () => {
+    setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
   });
+  Shortcuts.add('toggle-note-mode', 'note: edit / reading view', 'Mod+E', () => {
+    Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
+  });
+  Shortcuts.add('quote-selection', 'quote selection to assistant', 'Mod+Alt+K', () => {
+    const text = window.getSelection()?.toString() || '';
+    quoteToAssistant(text, selected ? `${selected.base}, note` : 'note');
+  });
+  Shortcuts.add('assistant-newline', 'assistant: newline (enter sends)', 'Shift+Enter', null, { fixed: true });
+
+  // The PDF viewer lives in its own frame, so it matches the quote shortcut
+  // itself — tell it the current combo (and re-tell after any rebind).
+  function syncShortcuts() {
+    pdfFrame.contentWindow?.postMessage(
+      { type: 'papyr-shortcuts', quote: Shortcuts.comboFor('quote-selection') },
+      '*'
+    );
+    document.getElementById('sidebar-toggle').title =
+      `Toggle paper list (${Shortcuts.displayFor('toggle-sidebar')})`;
+    document.getElementById('note-mode').title =
+      `Toggle edit / reading view (${Shortcuts.displayFor('toggle-note-mode')})`;
+  }
+  Shortcuts.init(ui.shortcuts, syncShortcuts);
+  pdfFrame.addEventListener('load', syncShortcuts);
+  syncShortcuts();
 
   window.papyr.onLibraryChanged(handlePapersChanged);
   window.papyr.onNoteChangedOnDisk((payload) => Note.handleDiskChange(payload));
@@ -278,5 +287,5 @@
   const lastPaper = papers.find((p) => p.relPath === ui.lastPaper);
   if (lastPaper) await selectPaper(lastPaper);
 
-  await TermPane.init();
+  await TermPane.init({ assistant, assistants });
 })().catch(console.error);

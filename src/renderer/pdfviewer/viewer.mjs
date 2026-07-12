@@ -74,12 +74,21 @@ window.addEventListener('message', (e) => {
     viewer.currentScale = d.scale;
   } else if (d.type === 'papyr-scroll' && typeof d.y === 'number') {
     container.scrollTop = d.y;
+  } else if (d.type === 'papyr-shortcuts' && typeof d.quote === 'string') {
+    quoteCombo = d.quote;
   }
 });
 
-// ⌘⌥K / Ctrl+Alt+K: send the current selection to the assistant pane
+// Send the current selection to the assistant pane. The combo is pushed in by
+// the app (user-rebindable, "Mod+Alt+K" form — see shortcuts.js).
+let quoteCombo = 'Mod+Alt+K';
 window.addEventListener('keydown', (e) => {
-  if ((e.metaKey || e.ctrlKey) && e.altKey && e.code === 'KeyK') {
+  const parts = [];
+  if (e.metaKey || e.ctrlKey) parts.push('Mod');
+  if (e.altKey) parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  parts.push(e.code.replace(/^(Key|Digit)/, ''));
+  if (parts.join('+') === quoteCombo) {
     e.preventDefault();
     const sel = window.getSelection();
     const text = sel ? sel.toString() : '';

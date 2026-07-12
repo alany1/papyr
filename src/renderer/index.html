@@ -17,6 +17,7 @@
     <span id="app-name">papyr</span>
     <span id="titlebar-paper"></span>
     <div id="minimized-dock"></div>
+    <button id="shortcuts-btn" title="Keyboard shortcuts">⌘</button>
   </header>
 
   <div id="app" class="sidebar-hidden">
@@ -83,6 +84,7 @@
         <div class="pane-header">
           <span class="pane-dot dot-term"></span>assistant
           <div class="pane-actions">
+            <button id="assistant-switch" title="Switch assistant (restarts the session)"></button>
             <button class="pane-min" data-pane="term" title="Minimize pane">–</button>
           </div>
         </div>
@@ -90,6 +92,17 @@
           <div id="term"></div>
         </div>
       </section>
+    </div>
+  </div>
+
+  <div id="shortcuts-overlay" hidden>
+    <div id="shortcuts-panel">
+      <header>
+        <span>keyboard shortcuts</span>
+        <button id="shortcuts-close" title="Close">✕</button>
+      </header>
+      <ul id="shortcuts-list"></ul>
+      <p id="shortcuts-hint">click a shortcut to change it — esc closes</p>
     </div>
   </div>
 
@@ -107,6 +120,7 @@
   <script src="sidebar.js"></script>
   <script src="note.js"></script>
   <script src="term.js"></script>
+  <script src="shortcuts.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

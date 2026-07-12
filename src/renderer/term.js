@@ -2,6 +2,8 @@ const TermPane = (() => {
   let term = null;
   let fitAddon = null;
   let restartArmed = false;
+  let assistant = 'claude';
+  let assistants = ['claude'];
 
   function fit() {
     if (!fitAddon) return;
@@ -24,7 +26,30 @@ const TermPane = (() => {
     await start();
   }
 
-  function init() {
+  // Switch to the next assistant CLI; the current session is killed and a
+  // fresh one starts in its place.
+  async function switchAssistant() {
+    const next = assistants[(assistants.indexOf(assistant) + 1) % assistants.length];
+    const result = await window.papyr.setAssistant(next);
+    if (!result.ok) return;
+    assistant = result.assistant;
+    updateSwitchButton();
+    await restart();
+    term.focus();
+  }
+
+  function updateSwitchButton() {
+    document.getElementById('assistant-switch').textContent = assistant;
+  }
+
+  function init(cfg) {
+    if (cfg && cfg.assistant) assistant = cfg.assistant;
+    if (cfg && Array.isArray(cfg.assistants) && cfg.assistants.length) assistants = cfg.assistants;
+    updateSwitchButton();
+    document.getElementById('assistant-switch').addEventListener('click', () => {
+      switchAssistant().catch(console.error);
+    });
+
     term = new Terminal({
       fontSize: 12.5,
       fontFamily: '"SF Mono", Menlo, Monaco, monospace',
@@ -64,9 +89,12 @@ const TermPane = (() => {
     // Shift+Enter sends the same \r as Enter in a plain terminal, so claude
     // submits instead of inserting a newline. Send ESC+CR (what claude's
     // /terminal-setup configures in iTerm/VS Code) to mean "newline".
+    // Swallow every event type of the stroke: xterm also calls this handler
+    // for the browser's legacy keypress event, and letting that through makes
+    // xterm send its own \r right after ours — newline, then submit.
     term.attachCustomKeyEventHandler((ev) => {
-      if (ev.type === 'keydown' && ev.key === 'Enter' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
-        window.papyr.term.input('\x1b\r');
+      if (ev.key === 'Enter' && ev.shiftKey && !ev.ctrlKey && !ev.metaKey && !ev.altKey) {
+        if (ev.type === 'keydown') window.papyr.term.input('\x1b\r');
         return false;
       }
       return true;
@@ -84,7 +112,7 @@ const TermPane = (() => {
 
     window.papyr.term.onData((data) => term.write(data));
     window.papyr.term.onExit(({ exitCode }) => {
-      term.write(`\r\n\x1b[2m[claude exited (code ${exitCode}) — press any key to restart]\x1b[0m\r\n`);
+      term.write(`\r\n\x1b[2m[${assistant} exited (code ${exitCode}) — press any key to restart]\x1b[0m\r\n`);
       restartArmed = true;
     });
 

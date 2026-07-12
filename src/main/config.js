@@ -5,6 +5,10 @@ const os = require('os');
 let configPath = null;
 let config = null;
 
+// Assistant CLIs the terminal pane can run. The chosen key is interpolated
+// into a shell command, so only values from this list are ever accepted.
+const ASSISTANTS = ['claude', 'codex'];
+
 function init(userDataDir) {
   configPath = path.join(userDataDir, 'config.json');
   try {
@@ -12,6 +16,7 @@ function init(userDataDir) {
   } catch {
     config = {};
   }
+  if (!ASSISTANTS.includes(config.assistant)) config.assistant = ASSISTANTS[0];
   if (process.env.PAPYR_LIBRARY) {
     config.libraryPath = process.env.PAPYR_LIBRARY; // test isolation
   } else if (!config.libraryPath || typeof config.libraryPath !== 'string') {
@@ -22,11 +27,11 @@ function init(userDataDir) {
   return config;
 }
 
-const CLAUDE_MD = `# Papyr Library
+const INSTRUCTIONS_MD = `# Papyr Library
 
 This folder is a Papyr library — a research workspace the user drives from a
-three-pane app: the selected paper (PDF), its markdown note, and you (this
-Claude Code session running in the library root).
+three-pane app: the selected paper (PDF), its markdown note, and you (an
+assistant CLI session running in the library root).
 
 ## Layout
 
@@ -60,8 +65,12 @@ function ensureLibrary() {
   fs.mkdirSync(path.join(config.libraryPath, 'papers'), { recursive: true });
   fs.mkdirSync(path.join(config.libraryPath, 'notes'), { recursive: true });
   fs.mkdirSync(path.join(config.libraryPath, '.papyr'), { recursive: true });
-  const claudeMd = path.join(config.libraryPath, 'CLAUDE.md');
-  if (!fs.existsSync(claudeMd)) fs.writeFileSync(claudeMd, CLAUDE_MD);
+  // Same workspace instructions for either assistant: claude reads CLAUDE.md,
+  // codex reads AGENTS.md.
+  for (const name of ['CLAUDE.md', 'AGENTS.md']) {
+    const file = path.join(config.libraryPath, name);
+    if (!fs.existsSync(file)) fs.writeFileSync(file, INSTRUCTIONS_MD);
+  }
 }
 
 function save() {
@@ -86,6 +95,7 @@ const UI_KEYS = new Set([
   'lastPaper',
   'collapsedCollections',
   'pdfDark',
+  'shortcuts',
 ]);
 
 function setUi(partial) {
@@ -98,8 +108,15 @@ function setUi(partial) {
   save();
 }
 
+function setAssistant(name) {
+  if (!ASSISTANTS.includes(name)) return false;
+  config.assistant = name;
+  save();
+  return true;
+}
+
 function get() {
   return config;
 }
 
-module.exports = { init, get, setLibraryPath, setUi };
+module.exports = { init, get, setLibraryPath, setUi, setAssistant, ASSISTANTS };

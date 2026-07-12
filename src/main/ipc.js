@@ -31,7 +31,15 @@ function register(win) {
   ipcMain.handle('config:get', () => ({
     libraryPath: config.get().libraryPath,
     ui: config.get().ui || {},
+    assistant: config.get().assistant,
+    assistants: config.ASSISTANTS,
   }));
+
+  ipcMain.handle('assistant:set', (_e, name) => {
+    if (!config.setAssistant(name)) return { ok: false, error: 'Unknown assistant' };
+    ptyManager.kill(); // renderer restarts the terminal with the new command
+    return { ok: true, assistant: name };
+  });
 
   ipcMain.on('ui:set', (_e, partial) => {
     if (partial && typeof partial === 'object' && !Array.isArray(partial)) config.setUi(partial);
@@ -125,6 +133,7 @@ function register(win) {
       cols: size && size.cols,
       rows: size && size.rows,
       cwd: config.get().libraryPath,
+      command: config.get().assistant,
     })
   );
 

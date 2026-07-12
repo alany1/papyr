@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 contextBridge.exposeInMainWorld('papyr', {
   getConfig: () => ipcRenderer.invoke('config:get'),
   setUi: (partial) => ipcRenderer.send('ui:set', partial),
+  setAssistant: (name) => ipcRenderer.invoke('assistant:set', name),
   pickLibrary: () => ipcRenderer.invoke('library:pick'),
   listPapers: () => ipcRenderer.invoke('library:list'),
   loadNote: (base) => ipcRenderer.invoke('note:load', base),
