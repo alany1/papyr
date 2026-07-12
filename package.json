@@ -10,7 +10,24 @@
     "rebuild": "electron-rebuild -f -w node-pty",
     "postinstall": "electron-rebuild -f -w node-pty",
     "screenshot": "PAPYR_SCREENSHOT=screenshot.png electron .",
-    "test": "sh scripts/e2e.sh"
+    "test": "sh scripts/e2e.sh",
+    "dist": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.papyr.app",
+    "asar": false,
+    "files": [
+      "src/**/*",
+      "assets/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        "dmg",
+        "dir"
+      ]
+    }
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
@@ -24,6 +41,7 @@
   },
   "devDependencies": {
     "@electron/rebuild": "^4.2.0",
-    "electron": "^43.1.0"
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3"
   }
 }
