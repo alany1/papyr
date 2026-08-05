@@ -94,6 +94,15 @@ function register(win) {
     }
   });
 
+  ipcMain.handle('paper:star', async (_e, base, starred) => {
+    try {
+      await library.setStarred(config.get().libraryPath, base, starred === true);
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
+
   // Moves the paper and its paired note to the system Trash (recoverable).
   ipcMain.handle('paper:delete', async (_e, relPath) => {
     try {
@@ -114,6 +123,8 @@ function register(win) {
       await shell.trashItem(pdf);
       const note = library.notePath(lib, base);
       if (fs.existsSync(note)) await shell.trashItem(note);
+      const stars = await library.loadStars(lib);
+      if (stars.delete(base)) await library.saveStars(lib, stars);
       return { ok: true, base };
     } catch (err) {
       return { ok: false, error: err.message };

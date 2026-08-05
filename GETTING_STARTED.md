@@ -54,7 +54,8 @@ after installing, press any key in the pane to retry.
   straight into `~/Papyr/papers/` in Finder.
 - **⌘B** toggles the paper list; click a paper to read it — its note opens
   beside it and autosaves as you type. Hover a paper and click **✕** to delete
-  it (paper + note go to the Trash, so it's recoverable). **⌘E** flips the note between editing
+  it (paper + note go to the Trash, so it's recoverable), or click **☆** to star
+  it — e.g. to mark papers you still want to read. **⌘E** flips the note between editing
   and rendered reading view (markdown + LaTeX).
 - **Ask the assistant** about what you're reading: it always knows which paper
   is open, so "summarize this paper" or "draft this paper's note" just works.

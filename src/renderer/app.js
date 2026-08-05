@@ -141,6 +141,15 @@
     // the library watcher delivers the renamed listing
   }
 
+  async function toggleStar(paper) {
+    const result = await window.papyr.setStarred(paper.base, !paper.starred);
+    if (!result.ok) {
+      Sidebar.flashFooter(result.error || 'Star failed');
+      return;
+    }
+    Sidebar.setData(await window.papyr.listPapers());
+  }
+
   async function deletePaper(paper) {
     // Clear the selection first so no pending note autosave can recreate the
     // note after it's trashed.
@@ -208,6 +217,7 @@
     onRenameCollection: renameCollection,
     onRenamePaper: renamePaperTo,
     onDelete: (paper) => deletePaper(paper).catch(console.error),
+    onToggleStar: (paper) => toggleStar(paper).catch(console.error),
   });
   Sidebar.setCollapsed(ui.collapsedCollections);
 

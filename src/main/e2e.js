@@ -419,7 +419,29 @@ async function run(win) {
     check('imported paper auto-selected',
       (await js(`document.querySelector('#paper-list li.selected')?.title`)) === 'E2E Fetched Paper.pdf');
 
-    // 5f. Rename a paper: the PDF and its note rename together, selection follows
+    // 5f. Star the selected paper: sidebar marks it, .papyr/stars.json records it
+    const starsFile = path.join(lib(), '.papyr', 'stars.json');
+    await js(`document.querySelector('#paper-list li.selected .paper-star').click()`);
+    await sleep(600);
+    check('star marks the sidebar item',
+      await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`));
+    check('star visible without hover', (await js(
+      `getComputedStyle(document.querySelector('#paper-list li.selected .paper-star')).display`
+    )) === 'block');
+    check('star persisted to stars.json',
+      JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('E2E Fetched Paper'));
+    // The assistant stars/unstars by editing stars.json directly; the watcher
+    // must reflect that in the sidebar without any app interaction.
+    fs.writeFileSync(starsFile, '[]\n');
+    await sleep(1200);
+    check('external stars.json edit unstars in sidebar',
+      !(await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`)));
+    fs.writeFileSync(starsFile, JSON.stringify(['E2E Fetched Paper']) + '\n');
+    await sleep(1200);
+    check('external stars.json edit stars in sidebar',
+      await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`));
+
+    // 5g. Rename a paper: the PDF and its note rename together, selection follows
     await js(`
       (() => { const li = document.querySelector('#paper-list li.selected');
         li.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); })()
@@ -436,6 +458,10 @@ async function run(win) {
     check('selection follows renamed paper',
       (await js(`document.querySelector('#paper-list li.selected')?.title`)) === 'E2E Renamed Paper.pdf');
     check('no conflict banner after rename', await js(`document.getElementById('note-banner').hidden`));
+    check('star follows renamed paper',
+      JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('E2E Renamed Paper'));
+    check('renamed paper still starred in sidebar',
+      await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`));
     await js(`
       (() => { const ed = document.getElementById('note-editor');
         ed.value += 'renamed-note-marker';
@@ -445,7 +471,7 @@ async function run(win) {
     check('autosave targets the renamed note',
       fs.readFileSync(path.join(lib(), 'notes', 'E2E Renamed Paper.md'), 'utf8').includes('renamed-note-marker'));
 
-    // 5g. Delete the selected paper: PDF and note leave the library (to Trash;
+    // 5h. Delete the selected paper: PDF and note leave the library (to Trash;
     // the confirm dialog is bypassed under PAPYR_E2E), selection clears
     await js(`document.querySelector('#paper-list li.selected .paper-delete').click()`);
     await sleep(1200);
@@ -456,6 +482,8 @@ async function run(win) {
     check('deleted paper out of sidebar', !(await js(
       `[...document.querySelectorAll('#paper-list li.paper')].some(li => li.title === 'E2E Renamed Paper.pdf')`
     )));
+    check('deleted paper unstarred',
+      !JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('E2E Renamed Paper'));
 
     // 6. Terminal: pty running and xterm received output
     check('pty running', ptyManager.isRunning());

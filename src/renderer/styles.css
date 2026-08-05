@@ -417,11 +417,14 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   border-radius: 8px;
   margin: 1px 0;
   position: relative;
-  padding-right: 26px;
+  padding-right: 44px;
 }
 #paper-list li.paper:hover { background: var(--bg-hover); }
 .paper-delete::before { content: '✕'; }
-.paper-delete {
+.paper-star::before { content: '☆'; }
+#paper-list li.paper.starred .paper-star::before { content: '★'; }
+.paper-delete,
+.paper-star {
   position: absolute;
   right: 4px;
   top: 50%;
@@ -435,8 +438,13 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   padding: 3px 6px;
   border-radius: 6px;
 }
-#paper-list li.paper:hover .paper-delete { display: block; }
+.paper-star { right: 22px; font-size: 12px; padding: 3px 4px; }
+#paper-list li.paper:hover .paper-delete,
+#paper-list li.paper:hover .paper-star { display: block; }
+/* a starred paper shows its star even without hover */
+#paper-list li.paper.starred .paper-star { display: block; color: var(--accent); }
 .paper-delete:hover { color: var(--rose); background: var(--bg-inset); }
+.paper-star:hover { color: var(--accent); background: var(--bg-inset); }
 #paper-list li.selected { background: var(--bg-active); color: #ffe9cf; }
 
 #paper-list li.collection-header {

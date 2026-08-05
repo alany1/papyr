@@ -31,6 +31,34 @@ function isPdf(entry) {
   return entry.isFile() && entry.name.toLowerCase().endsWith('.pdf') && !entry.name.startsWith('.');
 }
 
+// Stars are keyed by base name (like notes), so a star survives moves between
+// collections. The file lives in the library so stars travel with it and the
+// assistant can read (or edit) them.
+function starsPath(lib) {
+  return path.join(lib, '.papyr', 'stars.json');
+}
+
+async function loadStars(lib) {
+  try {
+    const list = JSON.parse(await fs.readFile(starsPath(lib), 'utf8'));
+    return new Set(Array.isArray(list) ? list.filter((s) => typeof s === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+
+async function saveStars(lib, stars) {
+  await writeAtomic(starsPath(lib), JSON.stringify([...stars].sort(), null, 2) + '\n');
+}
+
+async function setStarred(lib, base, starred) {
+  assertBase(base);
+  const stars = await loadStars(lib);
+  if (starred) stars.add(base);
+  else stars.delete(base);
+  await saveStars(lib, stars);
+}
+
 // Collections are one-level subdirectories of papers/. Returns every paper with its
 // collection ('' = library root) plus all collection names, including empty ones.
 async function listPapers(lib) {
@@ -60,6 +88,8 @@ async function listPapers(lib) {
     }
     papers.push(...sub.filter(isPdf).map((e) => toPaper(e, collection)));
   }
+  const stars = await loadStars(lib);
+  for (const paper of papers) paper.starred = stars.has(paper.base);
   return { papers: papers.sort(byBase), collections };
 }
 
@@ -104,6 +134,11 @@ async function renamePaper(lib, relPath, newBase) {
   if (noteContent !== null) await assertAbsent(newNote, `note "${newBase}.md" already exists`);
   await fs.rename(from, to);
   if (noteContent !== null) await fs.rename(oldNote, newNote);
+  const stars = await loadStars(lib);
+  if (stars.delete(oldBase)) {
+    stars.add(newBase);
+    await saveStars(lib, stars);
+  }
   return {
     relPath: collection ? `${collection}/${newFileName}` : newFileName,
     base: newBase,
@@ -201,5 +236,9 @@ module.exports = {
   papersDir,
   notesDir,
   notePath,
+  starsPath,
+  loadStars,
+  saveStars,
+  setStarred,
   TMP_SUFFIX,
 };

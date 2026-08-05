@@ -44,7 +44,17 @@ const Sidebar = (() => {
       e.stopPropagation();
       startRenameInput(li, paper.base, (name) => handlers.onRenamePaper(paper, name));
     });
-    // the glyph comes from CSS content so li.textContent stays the bare name
+    // the glyphs come from CSS content so li.textContent stays the bare name
+    if (paper.starred) li.classList.add('starred');
+    const star = document.createElement('button');
+    star.className = 'paper-star';
+    star.title = paper.starred ? 'Unstar' : 'Star — mark to read';
+    star.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handlers.onToggleStar(paper);
+    });
+    star.addEventListener('dblclick', (e) => e.stopPropagation());
+    li.appendChild(star);
     const del = document.createElement('button');
     del.className = 'paper-delete';
     del.title = 'Move paper and its note to the Trash';

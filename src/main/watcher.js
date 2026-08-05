@@ -2,7 +2,7 @@ const path = require('path');
 const fsp = require('fs/promises');
 const crypto = require('crypto');
 const chokidar = require('chokidar');
-const { papersDir, notesDir, TMP_SUFFIX } = require('./library');
+const { papersDir, notesDir, starsPath, TMP_SUFFIX } = require('./library');
 
 let watcher = null;
 let papersTimer = null;
@@ -20,7 +20,8 @@ function start(lib, { onPapersChanged, onNoteChanged }) {
   stop();
   const papers = papersDir(lib);
   const notes = notesDir(lib);
-  watcher = chokidar.watch([papers, notes], {
+  const stars = starsPath(lib);
+  watcher = chokidar.watch([papers, notes, stars], {
     ignoreInitial: true,
     depth: 1, // papers/<collection>/<file>
     awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
@@ -29,7 +30,12 @@ function start(lib, { onPapersChanged, onNoteChanged }) {
     const name = path.basename(changedPath);
     if (name.startsWith('.') || name.endsWith(TMP_SUFFIX)) return;
     const dir = path.dirname(changedPath);
-    if (changedPath.startsWith(papers + path.sep)) {
+    if (changedPath === stars) {
+      // Stars decorate the paper listing, so any change (ours or the
+      // assistant's) refreshes it the same way a papers/ change does.
+      clearTimeout(papersTimer);
+      papersTimer = setTimeout(onPapersChanged, 250);
+    } else if (changedPath.startsWith(papers + path.sep)) {
       // PDFs anywhere under papers/, plus collection dirs appearing/vanishing
       const isDirEvent = event === 'addDir' || event === 'unlinkDir';
       if (isDirEvent || name.toLowerCase().endsWith('.pdf')) {

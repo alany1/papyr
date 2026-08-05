@@ -54,7 +54,10 @@ a paper never orphans its note). Each header shows its paper count; click a head
 fold/unfold the group (fold state persists), double-click one to rename the collection.
 **Double-click a paper to rename it** — its note renames with it, so the pairing never
 breaks (the assistant is told to rename in pairs too). **Hover a paper and click ✕ to
-delete it** — the paper and its note move to the system Trash together (recoverable). Ask the assistant about the current paper or to
+delete it** — the paper and its note move to the system Trash together (recoverable).
+**Hover and click ☆ to star a paper** (e.g. mark it to-read) — starred papers keep a ★
+in the sidebar; stars live in `.papyr/stars.json` inside the library, follow renames, and
+the assistant can star/unstar for you ("star this paper"). Ask the assistant about the current paper or to
 synthesize across notes (e.g. "read papers/X.pdf and draft its note", "compare the three
 world-models notes and write notes/synthesis.md") — external edits to the open note flow
 into the editor live, and never clobber unsaved typing (you get a Reload / Keep mine choice).

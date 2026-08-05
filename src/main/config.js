@@ -48,6 +48,9 @@ assistant CLI session running in the library root).
   \`currentNote\` fields tell you which paper the user is looking at right now.
   Read it whenever the user says "this paper", "the current paper", or refers
   to what they're reading without naming it. Never edit this file.
+- \`.papyr/stars.json\` — a JSON array of paper names (without \`.pdf\`) the
+  user has starred as to-read. If asked to star or unstar a paper, edit this
+  file (rewrite the whole array); the app's sidebar picks it up live.
 
 ## How to work here
 
