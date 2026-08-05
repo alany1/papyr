@@ -55,7 +55,9 @@ after installing, press any key in the pane to retry.
 - **⌘B** toggles the paper list; click a paper to read it — its note opens
   beside it and autosaves as you type. Hover a paper and click **✕** to delete
   it (paper + note go to the Trash, so it's recoverable), or click **☆** to star
-  it — e.g. to mark papers you still want to read. **⌘E** flips the note between editing
+  it — e.g. to mark papers you still want to read. Starred papers gather in a
+  **Starred** group at the top of the list (you can also drag a paper onto that
+  header to star it). **⌘E** flips the note between editing
   and rendered reading view (markdown + LaTeX).
 - **Ask the assistant** about what you're reading: it always knows which paper
   is open, so "summarize this paper" or "draft this paper's note" just works.

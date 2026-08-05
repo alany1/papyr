@@ -56,8 +56,10 @@ fold/unfold the group (fold state persists), double-click one to rename the coll
 breaks (the assistant is told to rename in pairs too). **Hover a paper and click ✕ to
 delete it** — the paper and its note move to the system Trash together (recoverable).
 **Hover and click ☆ to star a paper** (e.g. mark it to-read) — starred papers keep a ★
-in the sidebar; stars live in `.papyr/stars.json` inside the library, follow renames, and
-the assistant can star/unstar for you ("star this paper"). Ask the assistant about the current paper or to
+in the sidebar and gather in a virtual **Starred** group on top of the list (papers stay
+in their real collections; drag a paper onto the Starred header to star it). Stars live
+in `.papyr/stars.json` inside the library, follow renames, and the assistant can
+star/unstar for you ("star this paper"). Ask the assistant about the current paper or to
 synthesize across notes (e.g. "read papers/X.pdf and draft its note", "compare the three
 world-models notes and write notes/synthesis.md") — external edits to the open note flow
 into the editor live, and never clobber unsaved typing (you get a Reload / Keep mine choice).

@@ -13,6 +13,10 @@ const Sidebar = (() => {
   let handlers = {};
   let footerTimer = null;
 
+  // Fold-state key for the virtual Starred group; contains '/' so it can
+  // never collide with a real collection (directory) name.
+  const STARRED = 'starred/';
+
   function makeDropTarget(el, collection) {
     el.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -25,6 +29,24 @@ const Sidebar = (() => {
       e.stopPropagation(); // window-level drop handler must not double-handle
       el.classList.remove('drop-target');
       handlers.onDrop(e.dataTransfer, collection);
+    });
+  }
+
+  // Dropping a paper on the Starred header stars it (papers don't move).
+  function makeStarDropTarget(el) {
+    el.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'link';
+      el.classList.add('drop-target');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+    el.addEventListener('drop', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      el.classList.remove('drop-target');
+      const rel = (e.dataTransfer.getData('text/plain') || '').trim();
+      const paper = papers.find((p) => p.relPath === rel);
+      if (paper && !paper.starred) handlers.onToggleStar(paper);
     });
   }
 
@@ -109,13 +131,14 @@ const Sidebar = (() => {
     badge.className = 'count';
     badge.textContent = count;
     li.append(chev, name, badge);
-    makeDropTarget(li, collection);
+    if (collection === STARRED) makeStarDropTarget(li);
+    else makeDropTarget(li, collection);
     let clickTimer = null;
     li.addEventListener('click', () => {
       clearTimeout(clickTimer);
       clickTimer = setTimeout(() => handlers.onToggleCollapse(collection), 200);
     });
-    if (collection !== '') {
+    if (collection !== '' && collection !== STARRED) {
       li.addEventListener('dblclick', () => {
         clearTimeout(clickTimer);
         startRenameInput(li, collection, (name) => handlers.onRenameCollection(collection, name));
@@ -127,8 +150,18 @@ const Sidebar = (() => {
   function render() {
     listEl.textContent = '';
     emptyEl.hidden = papers.length > 0 || collections.length > 0;
+    // Virtual Starred group on top: starred papers from every collection,
+    // shown only while something is starred. Items are the same papers, so
+    // selection/star/delete behave identically in either place.
+    const starred = papers.filter((p) => p.starred);
+    if (starred.length > 0) {
+      const header = groupHeader('Starred', STARRED, starred.length);
+      header.classList.add('starred-header');
+      listEl.appendChild(header);
+      if (!collapsed.has(STARRED)) for (const paper of starred) listEl.appendChild(paperItem(paper));
+    }
     const rootPapers = papers.filter((p) => p.collection === '');
-    if (collections.length > 0) {
+    if (collections.length > 0 || starred.length > 0) {
       listEl.appendChild(groupHeader('Papers', '', rootPapers.length));
       if (!collapsed.has('')) for (const paper of rootPapers) listEl.appendChild(paperItem(paper));
     } else {

@@ -430,16 +430,37 @@ async function run(win) {
     )) === 'block');
     check('star persisted to stars.json',
       JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('E2E Fetched Paper'));
+    const starredHeader = `[...document.querySelectorAll('#paper-list li.collection-header')]
+      .find(li => li.querySelector('.name').textContent === 'Starred')`;
+    check('starred group appears', await js(`!!${starredHeader}`));
+    check('starred group lists the paper too', (await js(
+      `[...document.querySelectorAll('#paper-list li.paper')].filter(li => li.title === 'E2E Fetched Paper.pdf').length`
+    )) === 2);
     // The assistant stars/unstars by editing stars.json directly; the watcher
     // must reflect that in the sidebar without any app interaction.
     fs.writeFileSync(starsFile, '[]\n');
     await sleep(1200);
     check('external stars.json edit unstars in sidebar',
       !(await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`)));
+    check('starred group hidden when empty', !(await js(`!!${starredHeader}`)));
     fs.writeFileSync(starsFile, JSON.stringify(['E2E Fetched Paper']) + '\n');
     await sleep(1200);
     check('external stars.json edit stars in sidebar',
       await js(`document.querySelector('#paper-list li.selected').classList.contains('starred')`));
+    // Dropping a paper on the Starred header stars it without moving it.
+    await js(`(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/plain', 'Alpha Paper.pdf');
+      ${starredHeader}.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true }));
+    })()`);
+    await sleep(800);
+    check('drop on Starred header stars the paper',
+      JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('Alpha Paper'));
+    check('dropped paper did not move', fs.existsSync(path.join(lib(), 'papers', 'Alpha Paper.pdf')));
+    await js(`[...document.querySelectorAll('#paper-list li.paper')]
+      .find(li => li.title === 'Alpha Paper.pdf').querySelector('.paper-star').click()`);
+    await sleep(800);
+    check('star button unstars', !JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('Alpha Paper'));
 
     // 5g. Rename a paper: the PDF and its note rename together, selection follows
     await js(`

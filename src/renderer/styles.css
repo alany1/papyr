@@ -445,6 +445,10 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 #paper-list li.paper.starred .paper-star { display: block; color: var(--accent); }
 .paper-delete:hover { color: var(--rose); background: var(--bg-inset); }
 .paper-star:hover { color: var(--accent); background: var(--bg-inset); }
+#paper-list li.collection-header.starred-header .name::before {
+  content: '★ ';
+  color: var(--accent);
+}
 #paper-list li.selected { background: var(--bg-active); color: #ffe9cf; }
 
 #paper-list li.collection-header {
