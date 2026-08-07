@@ -239,9 +239,17 @@
   window.addEventListener('dragover', (e) => {
     if (isExternalDrag(e.dataTransfer)) e.preventDefault();
   });
-  window.addEventListener('drop', (e) => {
+  // Capture phase, so the overlay clears on every drop: sidebar drop targets
+  // stopPropagation() when they consume one, which would keep a bubbling
+  // window handler (and its reset) from ever running. dragend covers drags
+  // that end without a drop.
+  const resetDropHint = () => {
     dragDepth = 0;
     dropHint.hidden = true;
+  };
+  window.addEventListener('drop', resetDropHint, true);
+  window.addEventListener('dragend', resetDropHint, true);
+  window.addEventListener('drop', (e) => {
     if (!isExternalDrag(e.dataTransfer)) return;
     e.preventDefault();
     handleDrop(e.dataTransfer, ''); // drops outside a sidebar group import to the root

@@ -36,6 +36,16 @@ async function run(win) {
   const check = (name, ok, detail = '') => results.push({ name, ok: !!ok, detail: String(detail) });
   const js = (code) => win.webContents.executeJavaScript(code, true);
   const lib = () => config.get().libraryPath;
+  // Poll a renderer condition instead of guessing a fixed sleep — watcher
+  // latency varies with machine load. Resolves true as soon as it holds.
+  const waitFor = async (code, timeoutMs = 5000) => {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      if (await js(code)) return true;
+      if (Date.now() > deadline) return false;
+      await sleep(150);
+    }
+  };
 
   const originalUi = { ...(config.get().ui || {}) };
   let notePath = null;
@@ -154,14 +164,13 @@ async function run(win) {
       JSON.stringify(state));
 
     // 3. Reading mode renders markdown + KaTeX (and is the factory default)
-    const inRead = await js(`!document.getElementById('note-view').hidden`);
+    const inRead = await waitFor(`!document.getElementById('note-view').hidden`);
     if (originalUi.noteMode === undefined) check('reading mode is the default', inRead);
     if (!inRead) await js(`document.getElementById('note-mode').click()`);
     check('markdown heading rendered', await js(`!!document.querySelector('#note-view h1')`));
     fs.writeFileSync(notePath, `# ${firstBase}\n\nexternal-edit-e2e with math $E_i = mc^2$\n`);
-    await sleep(1500);
     check('clean editor reloads external change',
-      (await js(`document.getElementById('note-editor').value`)).includes('external-edit-e2e'));
+      await waitFor(`document.getElementById('note-editor').value.includes('external-edit-e2e')`));
     check('latex rendered via katex', await js(`!!document.querySelector('#note-view .katex')`));
     check('no conflict banner when clean', await js(`document.getElementById('note-banner').hidden`));
 
@@ -187,9 +196,10 @@ async function run(win) {
     `);
     await sleep(600);
     fs.writeFileSync(notePath, `# ${firstBase}\n\nexternal-conflict-e2e\n`);
-    await sleep(1800);
+    const bannerShown = await waitFor(`!document.getElementById('note-banner').hidden`);
+    await sleep(600); // let the typer land a few more keystrokes ('xxx' below)
     await js(`clearInterval(window.__e2eTyper)`);
-    check('conflict banner when dirty', await js(`!document.getElementById('note-banner').hidden`));
+    check('conflict banner when dirty', bannerShown);
     const keptValue = await js(`document.getElementById('note-editor').value`);
     check('user text kept on conflict', keptValue.includes('xxx'),
       `editor=${JSON.stringify(keptValue.slice(-150))} file=${JSON.stringify(fs.readFileSync(notePath, 'utf8').slice(-150))} focus=${await js('document.hasFocus()')} active=${await js('document.activeElement && document.activeElement.id')}`);
@@ -505,6 +515,24 @@ async function run(win) {
     )));
     check('deleted paper unstarred',
       !JSON.parse(fs.readFileSync(starsFile, 'utf8')).includes('E2E Renamed Paper'));
+
+    // 5i. Regression: a drop consumed by a sidebar target (which calls
+    // stopPropagation) must still clear the drag-and-drop overlay.
+    await js(`(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/uri-list', '');
+      document.body.dispatchEvent(new DragEvent('dragenter', { dataTransfer: dt, bubbles: true }));
+    })()`);
+    check('drop hint shown on external dragenter',
+      (await js(`getComputedStyle(document.getElementById('drop-hint')).display`)) !== 'none');
+    await js(`(() => {
+      const dt = new DataTransfer();
+      dt.setData('text/uri-list', '');
+      document.querySelector('#paper-list li.paper')
+        .dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true }));
+    })()`);
+    check('drop hint cleared by drop on a sidebar target',
+      (await js(`getComputedStyle(document.getElementById('drop-hint')).display`)) === 'none');
 
     // 6. Terminal: pty running and xterm received output
     check('pty running', ptyManager.isRunning());
