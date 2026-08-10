@@ -64,7 +64,8 @@ after installing, press any key in the pane to retry.
   Select a passage in the PDF or note and hit **⌘⌥K** to quote it into the
   assistant input. **Shift+Enter** makes a newline; **Enter** sends.
 - The **⌘ button in the title bar** lists all shortcuts and lets you rebind
-  them (click a shortcut, press the new keys).
+  them (click a shortcut, press the new keys). Handy one: **⇧⌘T** folds or
+  expands every group in the paper list at once.
 - Drag pane headers to rearrange the layout; **–** minimizes a pane (a chip in
   the title bar brings it back); **☾** in the paper header inverts PDF pages
   for dark reading.

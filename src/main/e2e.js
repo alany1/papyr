@@ -260,6 +260,18 @@ async function run(win) {
     check('unfolding shows the group papers',
       (await js(`document.querySelectorAll('#paper-list li.paper').length`)) === visibleBefore);
 
+    // 5b-iii-b. Cmd+Shift+T folds every group at once; again expands them all
+    const foldAll = `window.dispatchEvent(new KeyboardEvent('keydown', { key: 't', metaKey: true, shiftKey: true }))`;
+    await js(foldAll);
+    check('fold-all hides all papers',
+      (await js(`document.querySelectorAll('#paper-list li.paper').length`)) === 0);
+    check('fold-all persisted', JSON.parse(fs.readFileSync(
+      path.join(require('electron').app.getPath('userData'), 'config.json'), 'utf8'
+    )).ui.collapsedCollections.includes('e2e-collection'));
+    await js(foldAll);
+    check('expand-all shows all papers again',
+      (await js(`document.querySelectorAll('#paper-list li.paper').length`)) === visibleBefore);
+
     // 5b-iv. Rename the collection; disk, sidebar, and selection all follow
     await js(`window.papyr.renameCollection('e2e-collection', 'e2e-renamed')`);
     await sleep(1500);

@@ -179,6 +179,16 @@ const Sidebar = (() => {
     render();
   }
 
+  // Fold keys of the group headers currently shown (mirrors render()'s logic).
+  function groupKeys() {
+    const keys = [];
+    const anyStarred = papers.some((p) => p.starred);
+    if (anyStarred) keys.push(STARRED);
+    if (collections.length > 0 || anyStarred) keys.push('');
+    keys.push(...collections);
+    return keys;
+  }
+
   function setData(next) {
     papers = next.papers;
     collections = next.collections;
@@ -231,5 +241,5 @@ const Sidebar = (() => {
     newInput.addEventListener('blur', () => endNewCollection(false));
   }
 
-  return { init, setData, setSelected, setLibraryPath, setCollapsed, refresh: () => render(), flashFooter };
+  return { init, setData, setSelected, setLibraryPath, setCollapsed, groupKeys, refresh: () => render(), flashFooter };
 })();

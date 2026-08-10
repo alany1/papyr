@@ -285,6 +285,16 @@
   Shortcuts.add('toggle-note-mode', 'note: edit / reading view', 'Mod+E', () => {
     Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
   });
+  Shortcuts.add('fold-all', 'fold / expand all groups', 'Mod+Shift+T', () => {
+    const keys = Sidebar.groupKeys();
+    if (keys.length === 0) return;
+    const set = new Set(ui.collapsedCollections || []);
+    if (keys.some((k) => !set.has(k))) for (const k of keys) set.add(k);
+    else for (const k of keys) set.delete(k);
+    ui.collapsedCollections = [...set];
+    Sidebar.setCollapsed(ui.collapsedCollections);
+    window.papyr.setUi({ collapsedCollections: ui.collapsedCollections });
+  });
   Shortcuts.add('quote-selection', 'quote selection to assistant', 'Mod+Alt+K', () => {
     const text = window.getSelection()?.toString() || '';
     quoteToAssistant(text, selected ? `${selected.base}, note` : 'note');
