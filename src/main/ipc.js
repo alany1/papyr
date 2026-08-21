@@ -131,10 +131,42 @@ function register(win) {
     }
   });
 
+  // Asks before importing a paper that is already in the library (identical
+  // bytes, or the same name with different contents — maybe another version).
+  async function confirmDuplicate(info) {
+    if (process.env.PAPYR_E2E) {
+      global.__papyrLastDup = info; // the suite inspects what was detected
+      return process.env.PAPYR_E2E_DUP || 'add';
+    }
+    const where = info.existing.collection ? ` (in "${info.existing.collection}")` : '';
+    const prompt = info.sameContent
+      ? {
+          message: `"${info.base}" is already in your library`,
+          detail: `An identical PDF exists as "${info.existing.base}"${where}. Add it again anyway?`,
+          buttons: ['Open existing', 'Add anyway', 'Cancel'],
+          decisions: ['open', 'add', 'cancel'],
+        }
+      : {
+          message: `A paper named "${info.base}" already exists`,
+          detail: `The existing one${where} has different contents — it may be another version of the same paper. Add this as a separate paper?`,
+          buttons: ['Add as separate paper', 'Open existing', 'Cancel'],
+          decisions: ['add', 'open', 'cancel'],
+        };
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'question',
+      buttons: prompt.buttons,
+      defaultId: 0,
+      cancelId: 2,
+      message: prompt.message,
+      detail: prompt.detail,
+    });
+    return prompt.decisions[response];
+  }
+
   ipcMain.handle('import:files', async (_e, paths, collection) => {
     try {
       if (!Array.isArray(paths)) throw new Error('No files');
-      return { ok: true, ...(await importer.importFiles(config.get().libraryPath, paths, collection)) };
+      return { ok: true, ...(await importer.importFiles(config.get().libraryPath, paths, collection, confirmDuplicate)) };
     } catch (err) {
       return { ok: false, error: err.message };
     }
@@ -142,7 +174,7 @@ function register(win) {
 
   ipcMain.handle('import:url', async (_e, url, collection) => {
     try {
-      return { ok: true, ...(await importer.importUrl(config.get().libraryPath, url, collection)) };
+      return { ok: true, ...(await importer.importUrl(config.get().libraryPath, url, collection, confirmDuplicate)) };
     } catch (err) {
       return { ok: false, error: err.message };
     }

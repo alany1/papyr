@@ -1,7 +1,8 @@
 const { net } = require('electron');
 const fs = require('fs/promises');
 const path = require('path');
-const { papersDir, assertBase } = require('./library');
+const crypto = require('crypto');
+const { papersDir, assertBase, listPapers } = require('./library');
 
 // arXiv abs/pdf URLs, new-style (2301.12345v2) and old-style (cs/0301012) ids.
 const ARXIV_RE = /arxiv\.org\/(?:abs|pdf)\/((?:[a-z-]+(?:\.[A-Z]{2})?\/)?\d{4}[.\d]*(?:v\d+)?)/i;
@@ -39,17 +40,65 @@ function relPathOf(collection, fileName) {
   return collection ? `${collection}/${fileName}` : fileName;
 }
 
+const sha256 = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+
+// Is this paper already in the library? Byte-identical content (anywhere,
+// checked first — only same-sized files get hashed) or the same name.
+// candidate = { size, hash: async () => hex }
+async function findDuplicate(lib, base, candidate) {
+  const { papers } = await listPapers(lib);
+  let candHash = null;
+  for (const p of papers) {
+    const abs = path.join(papersDir(lib), ...p.relPath.split('/'));
+    let st;
+    try {
+      st = await fs.stat(abs);
+    } catch {
+      continue;
+    }
+    if (st.size !== candidate.size) continue;
+    if (candHash === null) candHash = await candidate.hash();
+    if (sha256(await fs.readFile(abs)) === candHash) return { existing: p, sameContent: true };
+  }
+  const wanted = base.toLowerCase();
+  const byName = papers.find((p) => p.base.toLowerCase() === wanted);
+  return byName ? { existing: byName, sameContent: false } : null;
+}
+
+// onDuplicate(info) → 'add' | 'open' | 'cancel'; without a callback duplicates
+// are simply added (under a "(2)" name when the name is taken).
+async function resolveDuplicate(lib, base, candidate, onDuplicate) {
+  const dup = await findDuplicate(lib, base, candidate);
+  if (!dup) return { decision: 'add' };
+  const decision = onDuplicate ? await onDuplicate({ base, ...dup }) : 'add';
+  return { decision, existing: dup.existing };
+}
+
 // Copy local PDFs (Finder drops) into the library.
-async function importFiles(lib, paths, collection) {
+async function importFiles(lib, paths, collection, onDuplicate) {
   const dir = targetDir(lib, collection);
   const imported = [];
   const errors = [];
+  const opened = []; // existing papers the user chose to open instead
+  let cancelled = 0;
   for (const p of paths) {
     try {
       if (typeof p !== 'string' || !p.toLowerCase().endsWith('.pdf')) {
         throw new Error(`${path.basename(String(p))}: not a PDF`);
       }
       const base = sanitizeName(path.basename(p, path.extname(p)));
+      const st = await fs.stat(p);
+      const { decision, existing } = await resolveDuplicate(
+        lib, base, { size: st.size, hash: async () => sha256(await fs.readFile(p)) }, onDuplicate
+      );
+      if (decision === 'open') {
+        opened.push(existing.relPath);
+        continue;
+      }
+      if (decision === 'cancel') {
+        cancelled++;
+        continue;
+      }
       const fileName = await uniqueTarget(dir, base);
       await fs.copyFile(p, path.join(dir, fileName));
       imported.push(relPathOf(collection, fileName));
@@ -57,7 +106,7 @@ async function importFiles(lib, paths, collection) {
       errors.push(err.message);
     }
   }
-  return { imported, errors };
+  return { imported, errors, opened, cancelled };
 }
 
 async function fetchArxivTitle(id) {
@@ -71,7 +120,7 @@ async function fetchArxivTitle(id) {
 
 // Download a dropped link. arXiv abs/pdf pages resolve to the PDF and are
 // named by paper title; anything else must be a direct PDF link.
-async function importUrl(lib, url, collection) {
+async function importUrl(lib, url, collection, onDuplicate) {
   if (typeof url !== 'string' || !/^https?:\/\//i.test(url)) throw new Error('Not an http(s) link');
   let downloadUrl = url;
   let base = null;
@@ -100,9 +149,15 @@ async function importUrl(lib, url, collection) {
   }
 
   const dir = targetDir(lib, collection);
-  const fileName = await uniqueTarget(dir, sanitizeName(base));
+  const clean = sanitizeName(base);
+  const { decision, existing } = await resolveDuplicate(
+    lib, clean, { size: body.length, hash: async () => sha256(body) }, onDuplicate
+  );
+  if (decision === 'open') return { imported: [], errors: [], opened: [existing.relPath], cancelled: 0 };
+  if (decision === 'cancel') return { imported: [], errors: [], opened: [], cancelled: 1 };
+  const fileName = await uniqueTarget(dir, clean);
   await fs.writeFile(path.join(dir, fileName), body);
-  return { imported: [relPathOf(collection, fileName)], errors: [] };
+  return { imported: [relPathOf(collection, fileName)], errors: [], opened: [], cancelled: 0 };
 }
 
 module.exports = { importFiles, importUrl };

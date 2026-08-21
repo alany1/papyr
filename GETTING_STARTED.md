@@ -51,7 +51,9 @@ after installing, press any key in the pane to retry.
 
 - **Add papers** by dragging in a PDF file, a direct PDF link, or an arXiv
   link — arXiv papers are named by their actual title. You can also drop PDFs
-  straight into `~/Papyr/papers/` in Finder.
+  straight into `~/Papyr/papers/` in Finder. If a paper is already in your
+  library (same file, or same name), Papyr asks whether to open the existing
+  one or add this as a separate paper.
 - **⌘B** toggles the paper list; click a paper to read it — its note opens
   beside it and autosaves as you type. The search box at the top of the list
   filters papers as you type (**⇧⌘F** jumps to it; Enter opens the top match). Hover a paper and click **✕** to delete

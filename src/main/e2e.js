@@ -451,7 +451,38 @@ async function run(win) {
     check('file import copies into library',
       impFile.ok && fs.existsSync(path.join(lib(), 'papers', 'papyr-e2e-import.pdf')),
       JSON.stringify(impFile));
+
+    // 5e-ii. Duplicate detection: that import was byte-identical to a seeded
+    // paper, so it was flagged (the e2e decision defaults to "add"). Re-importing
+    // with each decision: cancel adds nothing, open points at the existing
+    // paper, and a same-name-different-content file is flagged as a name clash.
+    const lastDup = () => global.__papyrLastDup;
+    check('identical content detected as duplicate',
+      !!lastDup() && lastDup().sameContent === true && !!lastDup().existing, JSON.stringify(lastDup()));
+    const dupTwo = path.join(lib(), 'papers', 'papyr-e2e-import (2).pdf');
+    process.env.PAPYR_E2E_DUP = 'cancel';
+    const impCancel = await js(`window.papyr.importFiles([${JSON.stringify(tmpPdf)}], '')`);
+    check('cancelled duplicate import adds nothing',
+      impCancel.ok && impCancel.imported.length === 0 && impCancel.cancelled === 1 && !fs.existsSync(dupTwo),
+      JSON.stringify(impCancel));
+    process.env.PAPYR_E2E_DUP = 'open';
+    const impOpen = await js(`window.papyr.importFiles([${JSON.stringify(tmpPdf)}], '')`);
+    check('duplicate import can open the existing paper instead',
+      impOpen.ok && impOpen.imported.length === 0 && impOpen.opened.length === 1 && !fs.existsSync(dupTwo),
+      JSON.stringify(impOpen));
+    fs.writeFileSync(tmpPdf, Buffer.concat([fs.readFileSync(srcPdf), Buffer.from('\n% e2e variant\n')]));
+    process.env.PAPYR_E2E_DUP = 'add';
+    const impVariant = await js(`window.papyr.importFiles([${JSON.stringify(tmpPdf)}], '')`);
+    check('same name, different content flagged as name clash',
+      !!lastDup() && lastDup().sameContent === false && lastDup().existing.base === 'papyr-e2e-import',
+      JSON.stringify(lastDup()));
+    check('name clash added as a separate "(2)" paper',
+      impVariant.ok && impVariant.imported[0] === 'papyr-e2e-import (2).pdf' && fs.existsSync(dupTwo),
+      JSON.stringify(impVariant));
+    delete process.env.PAPYR_E2E_DUP;
+    fs.rmSync(dupTwo, { force: true });
     fs.rmSync(tmpPdf, { force: true });
+    await sleep(1200); // watcher settles before the next import check
 
     const http = require('http');
     const server = http.createServer((_req, res) => {

@@ -46,6 +46,9 @@ npm start
 or an **arXiv abs/pdf link** straight into the window — links are downloaded in the app,
 arXiv papers are named by their actual title, and the imported paper opens immediately.
 Drop onto a collection header to file it there; anywhere else imports to the library root.
+If the paper is **already in the library** — a byte-identical PDF under any name, or the same
+name with different contents (e.g. another version) — Papyr asks first: open the existing
+one, add it anyway as a separate paper, or cancel.
 You can also just drop PDFs into `~/Papyr/papers/` in Finder — they appear in the sidebar immediately (☰ or ⌘B toggles
 the sidebar; it starts hidden). Click a paper to read it; its note opens beside it.
 The **search box** at the top of the sidebar filters the list as you type (matches paper

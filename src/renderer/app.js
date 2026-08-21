@@ -100,11 +100,15 @@
       Sidebar.flashFooter(result.error);
       return;
     }
+    const imported = result.imported || [];
+    const opened = result.opened || []; // duplicates the user chose to open instead
     if (result.errors && result.errors.length > 0) Sidebar.flashFooter(result.errors.join('; '));
-    else Sidebar.flashFooter(`Imported ${result.imported.length} paper${result.imported.length > 1 ? 's' : ''}`);
+    else if (imported.length > 0) Sidebar.flashFooter(`Imported ${imported.length} paper${imported.length > 1 ? 's' : ''}`);
+    else if (opened.length > 0) Sidebar.flashFooter('Already in the library — opened the existing paper');
+    else if (result.cancelled) Sidebar.flashFooter('Import cancelled');
     const { papers, collections } = await window.papyr.listPapers();
     Sidebar.setData({ papers, collections });
-    const first = papers.find((p) => p.relPath === result.imported[0]);
+    const first = papers.find((p) => p.relPath === (imported[0] || opened[0]));
     if (first) await selectPaper(first);
   }
 
