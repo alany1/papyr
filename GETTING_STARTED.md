@@ -53,7 +53,8 @@ after installing, press any key in the pane to retry.
   link — arXiv papers are named by their actual title. You can also drop PDFs
   straight into `~/Papyr/papers/` in Finder.
 - **⌘B** toggles the paper list; click a paper to read it — its note opens
-  beside it and autosaves as you type. Hover a paper and click **✕** to delete
+  beside it and autosaves as you type. The search box at the top of the list
+  filters papers as you type (**⇧⌘F** jumps to it; Enter opens the top match). Hover a paper and click **✕** to delete
   it (paper + note go to the Trash, so it's recoverable), or click **☆** to star
   it — e.g. to mark papers you still want to read. Starred papers gather in a
   **Starred** group at the top of the list (you can also drag a paper onto that

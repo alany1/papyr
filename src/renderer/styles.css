@@ -513,6 +513,27 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
 }
 #sidebar-empty code { font-size: 11px; word-break: break-all; color: var(--fg); }
 
+#search-row { padding: 0 10px 6px; }
+#paper-search {
+  width: 100%;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 12px;
+  outline: none;
+  font-family: var(--font-ui);
+}
+#paper-search:focus { border-color: var(--accent); }
+#paper-search::placeholder { color: var(--fg-dim); }
+#paper-list li.no-results {
+  color: var(--fg-dim);
+  font-size: 12px;
+  padding: 6px 10px;
+  cursor: default;
+  font-style: italic;
+}
 #new-collection-row { padding: 6px 10px; }
 #new-collection {
   background: none;

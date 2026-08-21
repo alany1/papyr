@@ -272,6 +272,37 @@ async function run(win) {
     check('expand-all shows all papers again',
       (await js(`document.querySelectorAll('#paper-list li.paper').length`)) === visibleBefore);
 
+    // 5b-iii-c. Search box filters across groups (name + collection), Enter
+    // opens the top match, Esc clears, ⌘⇧F focuses it
+    const search = (text) => js(`(() => { const s = document.getElementById('paper-search');
+      s.value = ${JSON.stringify(text)}; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+    const shownTitles = () => js(`[...document.querySelectorAll('#paper-list li.paper')].map(li => li.title)`);
+    await search('beta');
+    check('search filters by paper name', JSON.stringify(await shownTitles()) === JSON.stringify(['Beta Paper.pdf']),
+      JSON.stringify(await shownTitles()));
+    await search('e2e-coll');
+    check('search matches collection name', JSON.stringify(await shownTitles()) === JSON.stringify([movedRel]),
+      JSON.stringify(await shownTitles()));
+    await search('no-such-paper-xyz');
+    check('search with no match shows a notice',
+      (await shownTitles()).length === 0 && (await js(`!!document.querySelector('#paper-list li.no-results')`)));
+    await search('beta');
+    await js(`document.getElementById('paper-search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+    await sleep(600);
+    check('enter opens the top search match',
+      (await js(`document.querySelector('#paper-list li.selected')?.title`)) === 'Beta Paper.pdf');
+    await js(`document.getElementById('paper-search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+    check('esc clears the search', (await js(`document.getElementById('paper-search').value`)) === '' &&
+      (await js(`document.querySelectorAll('#paper-list li.paper').length`)) === visibleBefore);
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'f', metaKey: true, shiftKey: true }))`);
+    check('search shortcut focuses the box', (await js(`document.activeElement?.id`)) === 'paper-search');
+    await js(`document.getElementById('paper-search').blur()`);
+    // back to the original selection for the checks that follow
+    await js(`[...document.querySelectorAll('#paper-list li.paper')].find(li => li.title === ${JSON.stringify(movedRel)}).click()`);
+    await sleep(800);
+    check('original paper reselected after search',
+      (await js(`document.querySelector('#paper-list li.selected')?.title`)) === movedRel);
+
     // 5b-iv. Rename the collection; disk, sidebar, and selection all follow
     await js(`window.papyr.renameCollection('e2e-collection', 'e2e-renamed')`);
     await sleep(1500);

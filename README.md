@@ -48,6 +48,8 @@ arXiv papers are named by their actual title, and the imported paper opens immed
 Drop onto a collection header to file it there; anywhere else imports to the library root.
 You can also just drop PDFs into `~/Papyr/papers/` in Finder — they appear in the sidebar immediately (☰ or ⌘B toggles
 the sidebar; it starts hidden). Click a paper to read it; its note opens beside it.
+The **search box** at the top of the sidebar filters the list as you type (matches paper
+and collection names across every group; ⇧⌘F jumps to it, Enter opens the top match, Esc clears).
 **Collections** are one-level subfolders of `papers/`: create one with "+ New collection"
 and drag papers between group headers to move them (notes stay flat in `notes/`, so moving
 a paper never orphans its note). Each header shows its paper count; click a header to

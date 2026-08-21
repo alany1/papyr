@@ -5,6 +5,7 @@ const Sidebar = (() => {
   const footerEl = document.getElementById('footer-path');
   const newBtn = document.getElementById('new-collection');
   const newInput = document.getElementById('new-collection-input');
+  const searchEl = document.getElementById('paper-search');
 
   let papers = [];
   let collections = [];
@@ -12,6 +13,8 @@ const Sidebar = (() => {
   let collapsed = new Set();
   let handlers = {};
   let footerTimer = null;
+  let query = '';
+  let rendered = []; // papers in current display order (Enter in the search box opens the first)
 
   // Fold-state key for the virtual Starred group; contains '/' so it can
   // never collide with a real collection (directory) name.
@@ -50,7 +53,16 @@ const Sidebar = (() => {
     });
   }
 
+  // Every whitespace-separated term must occur in "<collection> <name>".
+  function matches(paper) {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return true;
+    const hay = `${paper.collection} ${paper.base}`.toLowerCase();
+    return terms.every((t) => hay.includes(t));
+  }
+
   function paperItem(paper) {
+    rendered.push(paper);
     const li = document.createElement('li');
     li.className = 'paper';
     li.textContent = paper.base;
@@ -149,29 +161,49 @@ const Sidebar = (() => {
 
   function render() {
     listEl.textContent = '';
+    rendered = [];
     emptyEl.hidden = papers.length > 0 || collections.length > 0;
+    // While searching: only matching papers, groups with no match are skipped,
+    // and fold state is ignored so a match can never hide inside a folded group.
+    const filtering = query.trim().length > 0;
+    const shown = filtering ? papers.filter(matches) : papers;
+    const isOpen = (key) => filtering || !collapsed.has(key);
     // Virtual Starred group on top: starred papers from every collection,
     // shown only while something is starred. Items are the same papers, so
     // selection/star/delete behave identically in either place.
-    const starred = papers.filter((p) => p.starred);
+    const starred = shown.filter((p) => p.starred);
     if (starred.length > 0) {
       const header = groupHeader('Starred', STARRED, starred.length);
       header.classList.add('starred-header');
       listEl.appendChild(header);
-      if (!collapsed.has(STARRED)) for (const paper of starred) listEl.appendChild(paperItem(paper));
+      if (isOpen(STARRED)) for (const paper of starred) listEl.appendChild(paperItem(paper));
     }
-    const rootPapers = papers.filter((p) => p.collection === '');
+    const rootPapers = shown.filter((p) => p.collection === '');
     if (collections.length > 0 || starred.length > 0) {
-      listEl.appendChild(groupHeader('Papers', '', rootPapers.length));
-      if (!collapsed.has('')) for (const paper of rootPapers) listEl.appendChild(paperItem(paper));
+      if (!filtering || rootPapers.length > 0) {
+        listEl.appendChild(groupHeader('Papers', '', rootPapers.length));
+        if (isOpen('')) for (const paper of rootPapers) listEl.appendChild(paperItem(paper));
+      }
     } else {
       for (const paper of rootPapers) listEl.appendChild(paperItem(paper));
     }
     for (const collection of collections) {
-      const inGroup = papers.filter((p) => p.collection === collection);
+      const inGroup = shown.filter((p) => p.collection === collection);
+      if (filtering && inGroup.length === 0) continue;
       listEl.appendChild(groupHeader(collection, collection, inGroup.length));
-      if (!collapsed.has(collection)) for (const paper of inGroup) listEl.appendChild(paperItem(paper));
+      if (isOpen(collection)) for (const paper of inGroup) listEl.appendChild(paperItem(paper));
     }
+    if (filtering && shown.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'no-results';
+      li.textContent = 'no papers match';
+      listEl.appendChild(li);
+    }
+  }
+
+  function focusSearch() {
+    searchEl.focus();
+    searchEl.select();
   }
 
   function setCollapsed(list) {
@@ -239,7 +271,26 @@ const Sidebar = (() => {
       else if (e.key === 'Escape') endNewCollection(false);
     });
     newInput.addEventListener('blur', () => endNewCollection(false));
+    searchEl.addEventListener('input', () => {
+      query = searchEl.value;
+      render();
+    });
+    searchEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (rendered.length > 0) handlers.onSelect(rendered[0]);
+      } else if (e.key === 'Escape') {
+        e.stopPropagation();
+        if (searchEl.value) {
+          searchEl.value = '';
+          query = '';
+          render();
+        } else {
+          searchEl.blur();
+        }
+      }
+    });
   }
 
-  return { init, setData, setSelected, setLibraryPath, setCollapsed, groupKeys, refresh: () => render(), flashFooter };
+  return { init, setData, setSelected, setLibraryPath, setCollapsed, groupKeys, focusSearch, refresh: () => render(), flashFooter };
 })();

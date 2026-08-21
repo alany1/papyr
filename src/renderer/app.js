@@ -285,6 +285,10 @@
   Shortcuts.add('toggle-note-mode', 'note: edit / reading view', 'Mod+E', () => {
     Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
   });
+  Shortcuts.add('search-papers', 'search papers', 'Mod+Shift+F', () => {
+    setSidebarHidden(false);
+    Sidebar.focusSearch();
+  });
   Shortcuts.add('fold-all', 'fold / expand all groups', 'Mod+Shift+T', () => {
     const keys = Sidebar.groupKeys();
     if (keys.length === 0) return;
