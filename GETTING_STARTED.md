@@ -61,7 +61,8 @@ after installing, press any key in the pane to retry.
   it — e.g. to mark papers you still want to read. Starred papers gather in a
   **Starred** group at the top of the list (you can also drag a paper onto that
   header to star it). **⌘E** flips the note between editing
-  and rendered reading view (markdown + LaTeX).
+  and rendered reading view (markdown + LaTeX). **⌘F** finds a word or phrase
+  in the open paper (Enter / Shift+Enter jump between matches, Esc closes).
 - **Ask the assistant** about what you're reading: it always knows which paper
   is open, so "summarize this paper" or "draft this paper's note" just works.
   Select a passage in the PDF or note and hit **⌘⌥K** to quote it into the

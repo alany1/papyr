@@ -9,6 +9,13 @@
   <div id="viewerContainer">
     <div id="viewer" class="pdfViewer"></div>
   </div>
+  <div id="findbar" hidden>
+    <input id="find-input" type="text" placeholder="find in paper…" spellcheck="false" autocomplete="off">
+    <span id="find-count"></span>
+    <button id="find-prev" title="Previous match (⇧↩)">↑</button>
+    <button id="find-next" title="Next match (↩)">↓</button>
+    <button id="find-close" title="Close (esc)">✕</button>
+  </div>
   <script type="module" src="viewer.mjs"></script>
 </body>
 </html>

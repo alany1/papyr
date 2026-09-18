@@ -154,6 +154,45 @@ async function run(win) {
     check('assistant focused after quote',
       await js(`!!document.activeElement && !!document.activeElement.closest('#term-pane')`));
 
+    // ⌘F: find bar in the viewer frame highlights matches; Esc clears them
+    const found = await viewerFrame()?.executeJavaScript(`
+      (async () => {
+        const wait = async (cond, ms = 4000) => {
+          const end = Date.now() + ms;
+          while (!cond()) { if (Date.now() > end) return false; await new Promise(r => setTimeout(r, 100)); }
+          return true;
+        };
+        window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF', metaKey: true, cancelable: true }));
+        const bar = document.getElementById('findbar');
+        const input = document.getElementById('find-input');
+        const opened = !bar.hidden && document.activeElement === input;
+        input.value = 'papyr';
+        input.dispatchEvent(new Event('input'));
+        const highlighted = await wait(() => document.querySelector('.textLayer .highlight.selected'));
+        const count = document.getElementById('find-count').textContent;
+        input.value = 'zzzzqqq';
+        input.dispatchEvent(new Event('input'));
+        const notFound = await wait(() => bar.classList.contains('not-found'));
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', cancelable: true }));
+        const cleared = await wait(() => !document.querySelector('.textLayer .highlight'));
+        return { opened, highlighted, count, notFound, closed: bar.hidden, cleared };
+      })()
+    `);
+    check('cmd+f opens the find bar focused', !!found && found.opened, JSON.stringify(found));
+    check('find highlights the match with a count', !!found && found.highlighted && found.count === '1 of 1',
+      JSON.stringify(found));
+    check('find reports no match', !!found && found.notFound, JSON.stringify(found));
+    check('esc closes find and clears highlights', !!found && found.closed && found.cleared,
+      JSON.stringify(found));
+    // the shell's ⌘F reaches the frame too (focus was in the app, not the viewer)
+    await js(`document.getElementById('paper-search').focus()`);
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF', metaKey: true, cancelable: true }))`);
+    await sleep(200);
+    check('shell cmd+f opens find in the viewer', await viewerFrame()?.executeJavaScript(
+      `!document.getElementById('findbar').hidden && document.activeElement === document.getElementById('find-input')`
+    ));
+    await viewerFrame()?.executeJavaScript(`window.__papyrFind.close()`);
+
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 
     // 2b. Assistant context: CLAUDE.md present, state.json tracks the selection

@@ -1,9 +1,10 @@
 import * as pdfjsLib from '../pdfjs/build/pdf.min.mjs';
-import { PDFViewer, EventBus, PDFLinkService, PDFFindController } from '../pdfjs/web/pdf_viewer.mjs';
+import { PDFViewer, EventBus, PDFLinkService, PDFFindController, FindState } from '../pdfjs/web/pdf_viewer.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdfjs/build/pdf.worker.min.mjs';
 
 const container = document.getElementById('viewerContainer');
+container.tabIndex = -1; // focusable, so the find bar can hand focus back to the pages
 const eventBus = new EventBus();
 const linkService = new PDFLinkService({ eventBus });
 const findController = new PDFFindController({ eventBus, linkService });
@@ -74,21 +75,29 @@ window.addEventListener('message', (e) => {
     viewer.currentScale = d.scale;
   } else if (d.type === 'papyr-scroll' && typeof d.y === 'number') {
     container.scrollTop = d.y;
-  } else if (d.type === 'papyr-shortcuts' && typeof d.quote === 'string') {
-    quoteCombo = d.quote;
+  } else if (d.type === 'papyr-shortcuts') {
+    if (typeof d.quote === 'string') quoteCombo = d.quote;
+    if (typeof d.find === 'string') findCombo = d.find;
+  } else if (d.type === 'papyr-find') {
+    openFind();
   }
 });
 
 // Send the current selection to the assistant pane. The combo is pushed in by
 // the app (user-rebindable, "Mod+Alt+K" form — see shortcuts.js).
 let quoteCombo = 'Mod+Alt+K';
+let findCombo = 'Mod+F';
 window.addEventListener('keydown', (e) => {
   const parts = [];
   if (e.metaKey || e.ctrlKey) parts.push('Mod');
   if (e.altKey) parts.push('Alt');
   if (e.shiftKey) parts.push('Shift');
   parts.push(e.code.replace(/^(Key|Digit)/, ''));
-  if (parts.join('+') === quoteCombo) {
+  const combo = parts.join('+');
+  if (combo === findCombo) {
+    e.preventDefault();
+    openFind();
+  } else if (combo === quoteCombo) {
     e.preventDefault();
     const sel = window.getSelection();
     const text = sel ? sel.toString() : '';
@@ -100,6 +109,82 @@ window.addEventListener('keydown', (e) => {
     window.parent.postMessage({ type: 'papyr-quote', text, page }, '*');
   }
 });
+
+// ---- find in paper (⌘F) ----
+// pdf.js's PDFFindController does the matching + highlighting; this is just
+// the bar. Typing searches as you go (the controller debounces), Enter /
+// Shift+Enter step through matches, Esc closes and clears the highlights.
+const findbar = document.getElementById('findbar');
+const findInput = document.getElementById('find-input');
+const findCount = document.getElementById('find-count');
+
+function dispatchFind(type, findPrevious = false) {
+  eventBus.dispatch('find', {
+    source: findbar,
+    type,
+    query: findInput.value,
+    caseSensitive: false,
+    entireWord: false,
+    highlightAll: true,
+    findPrevious,
+    matchDiacritics: false,
+  });
+}
+
+function openFind() {
+  findbar.hidden = false;
+  // Like the browser: a current selection seeds the query.
+  const sel = (window.getSelection()?.toString() || '').replace(/\s+/g, ' ').trim();
+  if (sel && sel.length <= 200 && document.activeElement !== findInput) {
+    findInput.value = sel;
+    dispatchFind('');
+  }
+  findInput.focus();
+  findInput.select();
+}
+
+function closeFind() {
+  if (findbar.hidden) return;
+  findbar.hidden = true;
+  findbar.classList.remove('not-found');
+  findCount.textContent = '';
+  eventBus.dispatch('findbarclose', { source: findbar });
+  container.focus(); // keep arrow / page keys scrolling the paper
+}
+
+findInput.addEventListener('input', () => {
+  if (!findInput.value) {
+    findbar.classList.remove('not-found');
+    findCount.textContent = '';
+  }
+  dispatchFind('');
+});
+findInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    dispatchFind('again', e.shiftKey);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeFind();
+  }
+});
+document.getElementById('find-prev').addEventListener('click', () => dispatchFind('again', true));
+document.getElementById('find-next').addEventListener('click', () => dispatchFind('again', false));
+document.getElementById('find-close').addEventListener('click', closeFind);
+
+function showMatches({ current, total }, notFound) {
+  if (!findInput.value) return;
+  findbar.classList.toggle('not-found', !!notFound);
+  if (notFound) findCount.textContent = 'no match';
+  else if (total > 0) findCount.textContent = `${current} of ${total}`;
+  else findCount.textContent = '';
+}
+eventBus.on('updatefindmatchescount', ({ matchesCount }) => showMatches(matchesCount, false));
+eventBus.on('updatefindcontrolstate', ({ state, matchesCount }) => {
+  if (state === FindState.PENDING) return;
+  showMatches(matchesCount, state === FindState.NOT_FOUND);
+});
+window.__papyrFind = { open: openFind, close: closeFind }; // diagnostics / tests
 
 const fileUrl = new URLSearchParams(location.search).get('file');
 if (fileUrl) {

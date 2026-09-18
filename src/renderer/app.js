@@ -303,17 +303,25 @@
     Sidebar.setCollapsed(ui.collapsedCollections);
     window.papyr.setUi({ collapsedCollections: ui.collapsedCollections });
   });
+  Shortcuts.add('find-in-paper', 'find in paper', 'Mod+F', () => {
+    if (!selected) return;
+    pdfFrame.contentWindow?.postMessage({ type: 'papyr-find' }, '*');
+  });
   Shortcuts.add('quote-selection', 'quote selection to assistant', 'Mod+Alt+K', () => {
     const text = window.getSelection()?.toString() || '';
     quoteToAssistant(text, selected ? `${selected.base}, note` : 'note');
   });
   Shortcuts.add('assistant-newline', 'assistant: newline (enter sends)', 'Shift+Enter', null, { fixed: true });
 
-  // The PDF viewer lives in its own frame, so it matches the quote shortcut
-  // itself — tell it the current combo (and re-tell after any rebind).
+  // The PDF viewer lives in its own frame, so it matches the quote and find
+  // shortcuts itself — tell it the current combos (and re-tell after any rebind).
   function syncShortcuts() {
     pdfFrame.contentWindow?.postMessage(
-      { type: 'papyr-shortcuts', quote: Shortcuts.comboFor('quote-selection') },
+      {
+        type: 'papyr-shortcuts',
+        quote: Shortcuts.comboFor('quote-selection'),
+        find: Shortcuts.comboFor('find-in-paper'),
+      },
       '*'
     );
     document.getElementById('sidebar-toggle').title =

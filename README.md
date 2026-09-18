@@ -84,6 +84,8 @@ into the editor live, and never clobber unsaved typing (you get a Reload / Keep 
 - Layout, sidebar visibility/width, note mode, dark pages, and last-opened paper persist
   across launches (stored in config.json, not localStorage — Chromium's DOMStorage only
   flushes every ~5s and loses writes made just before quit).
+- **⌘F** finds a word or phrase in the open paper: matches highlight as you type,
+  Enter / Shift+Enter step through them, Esc closes (a selected passage seeds the query).
 - **⌘⌥K** quotes the current selection (PDF or note) into the assistant input as
   `"…" (paper, p.N)` and focuses it — select a passage, hit the shortcut, ask away.
   With nothing selected it just jumps focus to the assistant.
