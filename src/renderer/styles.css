@@ -735,3 +735,15 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   font-family: var(--font-ui);
 }
 #new-today:hover { color: var(--fg); background: var(--bg-hover); }
+
+/* frontmatter in reading view: one dim metadata line above the document */
+.note-front {
+  color: var(--fg-dim);
+  font-size: 11.5px;
+  line-height: 1.7;
+  padding: 0 0 10px;
+  margin: 0 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+.note-front .fm-key { color: var(--accent); opacity: 0.85; }
+.note-front .fm-sep { margin: 0 8px; opacity: 0.5; }

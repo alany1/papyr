@@ -22,8 +22,27 @@ const Note = (() => {
 
   const sameTarget = (a, b) => !!a && !!b && a.kind === b.kind && (a.base ?? a.rel) === (b.base ?? b.rel);
 
+  // YAML frontmatter (---\nkey: value\n---) reads as quiet metadata, not as
+  // body text; the editor still shows it verbatim.
+  const FRONT = /^---\n([\s\S]*?)\n---\n?/;
+  const escapeHtml = (t) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   function renderView() {
-    view.innerHTML = current === null ? `<p class="note-placeholder">${placeholder}</p>` : md.render(editor.value);
+    if (current === null) {
+      view.innerHTML = `<p class="note-placeholder">${placeholder}</p>`;
+      return;
+    }
+    let text = editor.value;
+    let front = '';
+    const m = text.match(FRONT);
+    if (m) {
+      text = text.slice(m[0].length);
+      const rows = m[1].split('\n').filter((l) => l.includes(':')).map((l) => {
+        const i = l.indexOf(':');
+        return `<span class="fm-key">${escapeHtml(l.slice(0, i).trim())}</span> ${escapeHtml(l.slice(i + 1).trim())}`;
+      });
+      front = `<div class="note-front">${rows.join('<span class="fm-sep">·</span>')}</div>`;
+    }
+    view.innerHTML = front + md.render(text);
   }
 
   function applyMode() {
