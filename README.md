@@ -95,6 +95,11 @@ into the editor live, and never clobber unsaved typing (you get a Reload / Keep 
   CLIs (the session restarts with the new one; the choice persists).
 - If the assistant exits, press any key in the terminal pane to restart it.
 
+**Importing from the command line** (no app needed): `npm run import -- <arxiv-or-pdf-url> [collection]`
+uses the same importer as drag-and-drop (arXiv title lookup, dedup) and prints the paper's
+path. Agents working in other repos use this to file papers into a collection; the running
+app picks the new file up through its watcher.
+
 ## Development
 
 - No bundler: plain scripts; xterm.js is loaded from `node_modules` via script tags.

@@ -1,4 +1,9 @@
-const { net } = require('electron');
+// Inside Electron use its net.fetch (proxy-aware); outside (scripts/import.js) fall back
+// to Node's global fetch. `require('electron')` in plain Node returns a path string, so
+// destructuring yields undefined rather than throwing.
+let electronNet = null;
+try { electronNet = require('electron').net || null; } catch (_) { electronNet = null; }
+const doFetch = (url) => (electronNet && electronNet.fetch ? electronNet.fetch(url) : fetch(url));
 const fs = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
@@ -111,7 +116,7 @@ async function importFiles(lib, paths, collection, onDuplicate) {
 
 async function fetchArxivTitle(id) {
   const bare = id.replace(/v\d+$/, '');
-  const res = await net.fetch(`https://export.arxiv.org/api/query?id_list=${encodeURIComponent(bare)}`);
+  const res = await doFetch(`https://export.arxiv.org/api/query?id_list=${encodeURIComponent(bare)}`);
   if (!res.ok) return null;
   const entry = (await res.text()).split('<entry>')[1];
   const match = entry && entry.match(/<title>([\s\S]*?)<\/title>/);
@@ -131,7 +136,7 @@ async function importUrl(lib, url, collection, onDuplicate) {
     base = (await fetchArxivTitle(id).catch(() => null)) || `arXiv ${id}`;
   }
 
-  const res = await net.fetch(downloadUrl);
+  const res = await doFetch(downloadUrl);
   if (!res.ok) throw new Error(`Download failed (HTTP ${res.status})`);
   const body = Buffer.from(await res.arrayBuffer());
   const contentType = res.headers.get('content-type') || '';

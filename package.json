@@ -11,7 +11,8 @@
     "postinstall": "electron-rebuild -f -w node-pty",
     "screenshot": "PAPYR_SCREENSHOT=screenshot.png electron .",
     "test": "sh scripts/e2e.sh",
-    "dist": "electron-builder --mac"
+    "dist": "electron-builder --mac",
+    "import": "node scripts/import.js"
   },
   "build": {
     "appId": "com.papyr.app",
