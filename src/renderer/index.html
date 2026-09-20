@@ -31,12 +31,15 @@
       </div>
       <ul id="paper-list"></ul>
       <div id="sidebar-empty" hidden>
-        <p>No papers yet.</p>
-        <p>Drag a PDF or an arXiv link here, or drop files into<br><code id="papers-dir-hint"></code></p>
+        <p id="sidebar-empty-title">No papers yet.</p>
+        <p id="sidebar-empty-hint">Drag a PDF or an arXiv link here, or drop files into<br><code id="papers-dir-hint"></code></p>
       </div>
       <div id="new-collection-row">
         <button id="new-collection">+ new collection</button>
         <input id="new-collection-input" placeholder="collection name" hidden>
+      </div>
+      <div id="new-entry-row" hidden>
+        <button id="new-today" title="Open today's journal entry (created if missing)">+ today</button>
       </div>
       <footer id="sidebar-footer">
         <img id="footer-logo" src="../../assets/logo.svg" alt="">
@@ -121,6 +124,7 @@
   <script src="../../node_modules/markdown-it-texmath/texmath.js"></script>
   <script src="layout.js"></script>
   <script src="sidebar.js"></script>
+  <script src="workspace.js"></script>
   <script src="note.js"></script>
   <script src="term.js"></script>
   <script src="shortcuts.js"></script>

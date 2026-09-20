@@ -23,6 +23,14 @@ function init(userDataDir) {
     config.libraryPath = path.join(os.homedir(), 'Papyr');
     save();
   }
+  // The workspace: a second, optional folder of markdown opened in its own
+  // window (PAPYR_WORKSPACE points tests at a temp dir and opens it at launch).
+  if (process.env.PAPYR_WORKSPACE) {
+    config.workspacePath = process.env.PAPYR_WORKSPACE;
+    config.workspaceOpen = true;
+  }
+  if (typeof config.workspacePath !== 'string') config.workspacePath = null;
+  if (!config.workspaceUi || typeof config.workspaceUi !== 'object') config.workspaceUi = {};
   ensureLibrary();
   return config;
 }
@@ -96,18 +104,36 @@ const UI_KEYS = new Set([
   'sidebarWidth',
   'noteMode',
   'lastPaper',
+  'lastDoc',
   'collapsedCollections',
   'pdfDark',
   'shortcuts',
 ]);
 
-function setUi(partial) {
-  config.ui = { ...(config.ui || {}) };
+// UI state is kept per window kind: the library window and the workspace
+// window each remember their own layout, sidebar, last-open file.
+function uiFor(kind) {
+  return (kind === 'workspace' ? config.workspaceUi : config.ui) || {};
+}
+
+function setUi(partial, kind = 'library') {
+  const slot = kind === 'workspace' ? 'workspaceUi' : 'ui';
+  config[slot] = { ...(config[slot] || {}) };
   for (const [key, value] of Object.entries(partial)) {
     if (!UI_KEYS.has(key)) continue;
-    if (value === undefined || value === null) delete config.ui[key];
-    else config.ui[key] = value;
+    if (value === undefined || value === null) delete config[slot][key];
+    else config[slot][key] = value;
   }
+  save();
+}
+
+function setWorkspacePath(folder) {
+  config.workspacePath = folder;
+  save();
+}
+
+function setWorkspaceOpen(open) {
+  config.workspaceOpen = !!open;
   save();
 }
 
@@ -122,4 +148,4 @@ function get() {
   return config;
 }
 
-module.exports = { init, get, setLibraryPath, setUi, setAssistant, ASSISTANTS };
+module.exports = { init, get, setLibraryPath, setUi, uiFor, setWorkspacePath, setWorkspaceOpen, setAssistant, ASSISTANTS };

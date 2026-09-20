@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const config = require('./config');
-const ptyManager = require('./ptyManager');
+const sessions = require('./sessions');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -648,7 +648,7 @@ async function run(win) {
       (await js(`getComputedStyle(document.getElementById('drop-hint')).display`)) === 'none');
 
     // 6. Terminal: pty running and xterm received output
-    check('pty running', ptyManager.isRunning());
+    check('pty running', sessions.byContents(win.webContents).pty.isRunning());
     const termText = await js(`
       (() => { const t = document.querySelector('#term .xterm'); return t ? t.textContent.length : 0; })()
     `);
@@ -659,6 +659,80 @@ async function run(win) {
       fetch('papyr://app/papers/..%2F..%2Fconfig.json').then(r => r.status).catch(() => 'network-error')
     `);
     check('traversal rejected', status === 403 || status === 404 || status === 'network-error', `status=${status}`);
+
+    // 8. Workspace window (PAPYR_WORKSPACE): a folder of markdown in its own window
+    // with a file tree, the note pane as editor, and its own assistant.
+    const wsSession = sessions.byKind('workspace');
+    check('workspace window opened at launch', !!wsSession);
+    if (wsSession) {
+      const wsWin = wsSession.win;
+      const ws = () => wsSession.folder;
+      const wjs = (code) => wsWin.webContents.executeJavaScript(code, true);
+      const wwait = async (code, timeoutMs = 6000) => {
+        const deadline = Date.now() + timeoutMs;
+        for (;;) {
+          if (await wjs(code)) return true;
+          if (Date.now() > deadline) return false;
+          await sleep(150);
+        }
+      };
+      await wwait(`!!document.body.classList.contains('kind-workspace')`);
+      check('workspace window has no paper pane',
+        await wjs(`getComputedStyle(document.getElementById('pdf-pane')).display === 'none'`));
+      check('workspace sidebar shown by default',
+        await wjs(`!document.getElementById('app').classList.contains('sidebar-hidden')`));
+      check('workspace lists files', await wwait(`document.querySelectorAll('#paper-list li.doc').length >= 4`),
+        await wjs(`document.querySelectorAll('#paper-list li.doc').length`));
+      check('project files grouped under the project',
+        await wjs(`[...document.querySelectorAll('#paper-list li.doc-header .name')].map(n => n.textContent).includes('alpha')`));
+      check('journal newest first', await wjs(`(() => {
+        const t = [...document.querySelectorAll('#paper-list li.doc')].map(li => li.title).filter(r => r.startsWith('journal/'));
+        return t[0] === 'journal/2026-01-02.md' && t[1] === 'journal/2026-01-01.md'; })()`));
+      await wjs(`document.querySelector('#paper-list li.doc[title="projects/alpha/proposal.md"]').click()`);
+      check('document opens in the note pane',
+        await wwait(`document.querySelector('#note-view h1')?.textContent === 'Alpha proposal'`));
+      check('document row selected', await wjs(`document.querySelector('#paper-list li.doc.selected')?.title === 'projects/alpha/proposal.md'`));
+      check('title bar shows the document', await wjs(`document.getElementById('titlebar-paper').textContent === 'proposal'`));
+      const wsState = JSON.parse(fs.readFileSync(path.join(ws(), '.papyr', 'state.json'), 'utf8'));
+      check('workspace state.json names current document', wsState.currentDoc === 'projects/alpha/proposal.md', JSON.stringify(wsState));
+      const proposalPath = path.join(ws(), 'projects', 'alpha', 'proposal.md');
+      fs.writeFileSync(proposalPath, '# Alpha proposal\n\nsecond version\n');
+      check('document reloads on external change',
+        await wwait(`document.getElementById('note-view').textContent.includes('second version')`));
+      await wjs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', metaKey: true }))`);
+      check('cmd+E edits the document', await wjs(`!document.getElementById('note-editor').hidden`));
+      await wjs(`(() => { const ed = document.getElementById('note-editor'); ed.value += 'docmarker-42\\n'; ed.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      await sleep(1500);
+      check('document autosaves to disk', fs.readFileSync(proposalPath, 'utf8').includes('docmarker-42'));
+      await wjs(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', metaKey: true }))`);
+      // "+ today": the global day file, created and opened in edit mode
+      const today = new Date().toISOString().slice(0, 10);
+      await wjs(`document.getElementById('new-today').click()`);
+      check('+ today creates the day file', await wwait(`document.querySelector('#paper-list li.doc.selected')?.title === 'journal/${today}.md'`) &&
+        fs.existsSync(path.join(ws(), 'journal', `${today}.md`)));
+      check('+ today opens in edit mode', await wjs(`!document.getElementById('note-editor').hidden`));
+      // project "+": the project's entry for today, linked from the day file
+      await wjs(`document.querySelector('#paper-list li.doc-header .group-add').click()`);
+      const entryPath = path.join(ws(), 'projects', 'alpha', 'journal', `${today}.md`);
+      check('project + creates the project entry', await wwait(`document.querySelector('#paper-list li.doc.selected')?.title === 'projects/alpha/journal/${today}.md'`) &&
+        fs.existsSync(entryPath));
+      check('project entry has frontmatter', fs.existsSync(entryPath) && fs.readFileSync(entryPath, 'utf8').includes(`day: ../../../journal/${today}.md`));
+      check('day file links the project entry',
+        fs.readFileSync(path.join(ws(), 'journal', `${today}.md`), 'utf8').includes(`[alpha](../projects/alpha/journal/${today}.md)`));
+      // search filters files; Enter opens the top match
+      await wjs(`(() => { const s = document.getElementById('paper-search'); s.value = 'question'; s.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+      check('workspace search filters files', await wjs(`[...document.querySelectorAll('#paper-list li.doc')].map(li => li.title).join() === 'question.md'`));
+      await wjs(`document.getElementById('paper-search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))`);
+      check('enter opens the top file match', await wwait(`document.querySelector('#paper-list li.doc.selected')?.title === 'question.md'`));
+      await wjs(`document.getElementById('paper-search').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+      // removing a file drops it from the tree and closes it if open
+      fs.rmSync(path.join(ws(), 'question.md'));
+      check('removed file leaves the tree', await wwait(`!document.querySelector('#paper-list li.doc[title="question.md"]')`));
+      check('removed open file closes the pane', await wwait(`document.getElementById('note-editor').disabled`));
+      check('workspace assistant running', wsSession.pty.isRunning());
+      check('library window untouched by workspace state',
+        JSON.parse(fs.readFileSync(path.join(lib(), '.papyr', 'state.json'), 'utf8')).currentDoc === null);
+    }
   } catch (err) {
     check('e2e crashed', false, err.stack || String(err));
   }
@@ -694,6 +768,7 @@ async function run(win) {
   fs.writeFileSync(process.env.PAPYR_E2E, JSON.stringify(results, null, 2));
   const { app } = require('electron');
   app.once('quit', () => process.exit(failed.length === 0 ? 0 : 1));
+  for (const s of sessions.all()) if (s.win !== win) s.win.close();
   win.close(); // graceful close so localStorage reaches disk
 }
 

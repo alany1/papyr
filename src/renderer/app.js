@@ -188,7 +188,163 @@
     TermPane.fit();
   }
 
-  const { libraryPath, ui = {}, assistant, assistants } = await window.papyr.getConfig();
+  // ---- Workspace window: a folder of markdown, no paper pane -------------
+  // Same panes (note + assistant), same shortcuts; the sidebar is a file tree
+  // and the assistant runs in the workspace folder.
+  async function initWorkspace(cfg) {
+    const ui = cfg.ui || {};
+    document.body.classList.add('kind-workspace');
+    document.getElementById('sidebar-title').textContent = 'workspace';
+    document.getElementById('paper-search').placeholder = 'search files…';
+    document.getElementById('new-collection-row').hidden = true;
+    document.getElementById('new-entry-row').hidden = false;
+    document.getElementById('sidebar-empty-title').textContent = 'No markdown files here yet.';
+    document.getElementById('sidebar-empty-hint').textContent = 'Create one in this folder, or ask the assistant to.';
+    document.getElementById('change-library').title = 'Change workspace folder…';
+    Layout.init(ui, ['note', 'term']);
+    Note.init(ui.noteMode, { placeholder: 'Select a file' });
+
+    let selectedDoc = null;
+    let collapsed = ui.collapsedCollections || [];
+    const labelOf = (d) => d.label || d.rel.split('/').pop().replace(/\.md$/i, '');
+
+    async function selectDoc(doc) {
+      if (selectedDoc && selectedDoc.rel === doc.rel) return;
+      await Note.flush();
+      selectedDoc = doc;
+      WorkspaceSidebar.setSelected(doc.rel);
+      titlebarPaper.textContent = labelOf(doc);
+      window.papyr.docSelected(doc.rel);
+      window.papyr.setUi({ lastDoc: doc.rel });
+      await Note.openDoc(doc.rel);
+    }
+
+    function clearDoc() {
+      selectedDoc = null;
+      WorkspaceSidebar.setSelected(null);
+      titlebarPaper.textContent = '';
+      window.papyr.docSelected(null);
+      window.papyr.setUi({ lastDoc: null });
+      Note.close();
+    }
+
+    function handleDocsChanged(docs) {
+      WorkspaceSidebar.setDocs(docs);
+      if (selectedDoc && !docs.some((d) => d.rel === selectedDoc.rel)) clearDoc();
+    }
+
+    // "+ today" (global day file) or a project header's "+" (that project's entry).
+    async function newEntry(project) {
+      const result = await window.papyr.newEntry({ project });
+      if (!result.ok) {
+        WorkspaceSidebar.flashFooter(result.error);
+        return;
+      }
+      const docs = await window.papyr.listDocs();
+      WorkspaceSidebar.setDocs(docs);
+      const doc = docs.find((d) => d.rel === result.rel);
+      if (doc) {
+        await selectDoc(doc);
+        Note.setMode('edit');
+      }
+    }
+
+    function persistCollapsed() {
+      WorkspaceSidebar.setCollapsed(collapsed);
+      window.papyr.setUi({ collapsedCollections: collapsed });
+    }
+
+    function toggleCollapse(key) {
+      const set = new Set(collapsed);
+      if (set.has(key)) set.delete(key);
+      else set.add(key);
+      collapsed = [...set];
+      persistCollapsed();
+    }
+
+    async function switchFolder(folder) {
+      WorkspaceSidebar.setFolder(folder);
+      clearDoc();
+      WorkspaceSidebar.setDocs(await window.papyr.listDocs());
+      await TermPane.restart();
+    }
+
+    async function changeFolder() {
+      const result = await window.papyr.pickLibrary();
+      if (result) await switchFolder(result.folder);
+    }
+
+    WorkspaceSidebar.init({
+      onSelect: (d) => selectDoc(d).catch(console.error),
+      onNewEntry: (project) => newEntry(project).catch(console.error),
+      onToggleCollapse: toggleCollapse,
+      onChangeFolder: () => changeFolder().catch(console.error),
+    });
+    WorkspaceSidebar.setCollapsed(collapsed);
+    WorkspaceSidebar.setFolder(cfg.folder);
+
+    // The file list is the point of this window: shown unless hidden on purpose.
+    setSidebarHidden(ui.sidebarHidden === true);
+    document.getElementById('sidebar-toggle').addEventListener('click', () => {
+      setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
+    });
+
+    Shortcuts.add('toggle-sidebar', 'toggle file list', 'Mod+B', () => {
+      setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
+    });
+    Shortcuts.add('toggle-note-mode', 'edit / reading view', 'Mod+E', () => {
+      Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
+    });
+    Shortcuts.add('search-papers', 'search files', 'Mod+Shift+F', () => {
+      setSidebarHidden(false);
+      WorkspaceSidebar.focusSearch();
+    });
+    Shortcuts.add('fold-all', 'fold / expand all groups', 'Mod+Shift+T', () => {
+      const keys = WorkspaceSidebar.groupKeys();
+      if (keys.length === 0) return;
+      const set = new Set(collapsed);
+      if (keys.some((k) => !set.has(k))) for (const k of keys) set.add(k);
+      else for (const k of keys) set.delete(k);
+      collapsed = [...set];
+      persistCollapsed();
+    });
+    Shortcuts.add('new-entry', "today's journal entry", 'Mod+Shift+J', () => newEntry(null).catch(console.error));
+    Shortcuts.add('quote-selection', 'quote selection to assistant', 'Mod+Alt+K', () => {
+      const text = window.getSelection()?.toString() || '';
+      quoteToAssistant(text, selectedDoc ? labelOf(selectedDoc) : 'file');
+    });
+    Shortcuts.add('assistant-newline', 'assistant: newline (enter sends)', 'Shift+Enter', null, { fixed: true });
+    const syncTitles = () => {
+      document.getElementById('sidebar-toggle').title = `Toggle file list (${Shortcuts.displayFor('toggle-sidebar')})`;
+      document.getElementById('note-mode').title = `Toggle edit / reading view (${Shortcuts.displayFor('toggle-note-mode')})`;
+    };
+    Shortcuts.init(ui.shortcuts, syncTitles);
+    syncTitles();
+
+    window.papyr.onDocsChanged(handleDocsChanged);
+    window.papyr.onDocChangedOnDisk((payload) => Note.handleDocDiskChange(payload));
+    window.papyr.onFolderChanged(({ folder }) => switchFolder(folder).catch(console.error));
+    window.papyr.onFlushRequest(async () => {
+      try {
+        await Note.flush();
+      } finally {
+        window.papyr.flushed();
+      }
+    });
+
+    const docs = await window.papyr.listDocs();
+    WorkspaceSidebar.setDocs(docs);
+    const last = docs.find((d) => d.rel === ui.lastDoc);
+    if (last) await selectDoc(last);
+    await TermPane.init({ assistant: cfg.assistant, assistants: cfg.assistants });
+  }
+
+  const cfg = await window.papyr.getConfig();
+  if (cfg.kind === 'workspace') {
+    await initWorkspace(cfg);
+    return;
+  }
+  const { libraryPath, ui = {}, assistant, assistants } = cfg;
 
   Layout.init(ui);
   Note.init(ui.noteMode);

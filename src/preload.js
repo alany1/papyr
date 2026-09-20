@@ -8,6 +8,16 @@ contextBridge.exposeInMainWorld('papyr', {
   listPapers: () => ipcRenderer.invoke('library:list'),
   loadNote: (base) => ipcRenderer.invoke('note:load', base),
   saveNote: (base, content) => ipcRenderer.invoke('note:save', base, content),
+  // Workspace documents (a folder of markdown opened in its own window)
+  listDocs: () => ipcRenderer.invoke('docs:list'),
+  loadDoc: (rel) => ipcRenderer.invoke('doc:load', rel),
+  saveDoc: (rel, content) => ipcRenderer.invoke('doc:save', rel, content),
+  newEntry: (opts) => ipcRenderer.invoke('entry:new', opts),
+  docSelected: (rel) => ipcRenderer.send('doc:selected', rel),
+  openWorkspace: () => ipcRenderer.invoke('workspace:open'),
+  onDocsChanged: (cb) => ipcRenderer.on('docs:changed', (_e, docs) => cb(docs)),
+  onDocChangedOnDisk: (cb) => ipcRenderer.on('doc:changed-on-disk', (_e, payload) => cb(payload)),
+  onFolderChanged: (cb) => ipcRenderer.on('folder:changed', (_e, payload) => cb(payload)),
   // Our bundled pdf.js viewer, loading the paper same-origin over papyr://
   pdfUrl: (relPath) => {
     const fileUrl = `papyr://app/papers/${relPath.split('/').map(encodeURIComponent).join('/')}`;

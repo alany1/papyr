@@ -210,8 +210,108 @@ async function readNote(lib, base) {
   return fs.readFile(notePath(lib, base), 'utf8');
 }
 
+// ---- Workspace documents ---------------------------------------------------
+// A workspace is a folder of markdown (proposals, journal, ideas...) with no
+// papers/ tree. Documents are addressed by path relative to the folder.
+const DOC_IGNORE = new Set(['papers', 'notes', 'node_modules', 'site', 'reading-notes', 'dist', 'build']);
+const DOC_MAX_DEPTH = 4;
+
+function isDocIgnoredTop(name) {
+  return name.startsWith('.') || DOC_IGNORE.has(name);
+}
+
+async function listDocs(folder) {
+  const docs = [];
+  async function walk(dir, rel, depth) {
+    let entries;
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      if (e.name.startsWith('.') || e.name.startsWith('_')) continue;
+      if (e.isSymbolicLink()) continue; // never follow links out of the folder
+      if (depth === 0 && isDocIgnoredTop(e.name)) continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (depth < DOC_MAX_DEPTH) await walk(path.join(dir, e.name), r, depth + 1);
+      } else if (e.isFile() && e.name.toLowerCase().endsWith('.md')) {
+        docs.push({ rel: r, name: e.name.slice(0, -3) });
+      }
+    }
+  }
+  await walk(folder, '', 0);
+  docs.sort((a, b) => a.rel.localeCompare(b.rel, undefined, { sensitivity: 'base' }));
+  return docs;
+}
+
+// A document path: relative, .md, no dot segments, inside the folder.
+function docPath(folder, rel) {
+  if (typeof rel !== 'string' || rel.length === 0 || rel.includes('\0') || path.isAbsolute(rel)) {
+    throw new Error(`Invalid document path: ${JSON.stringify(rel)}`);
+  }
+  const segments = rel.split('/');
+  if (segments.some((s) => s === '' || s === '.' || s === '..' || s.startsWith('.') || s.includes('\\'))) {
+    throw new Error(`Invalid document path: ${JSON.stringify(rel)}`);
+  }
+  if (!rel.toLowerCase().endsWith('.md') || isDocIgnoredTop(segments[0])) {
+    throw new Error(`Not a workspace document: ${JSON.stringify(rel)}`);
+  }
+  const abs = path.resolve(folder, ...segments);
+  if (!abs.startsWith(path.resolve(folder) + path.sep)) throw new Error('Path escapes the folder');
+  return abs;
+}
+
+async function loadDoc(folder, rel) {
+  const p = docPath(folder, rel);
+  return { content: await fs.readFile(p, 'utf8'), path: p };
+}
+
+async function saveDoc(folder, rel, content) {
+  const p = docPath(folder, rel);
+  await writeAtomic(p, content);
+  return { path: p };
+}
+
+// A dated entry, following the journal convention: the global day file
+// journal/<date>.md holds one line per project entry; a project entry
+// projects/<slug>/journal/<date>.md links back to its day. Existing files are
+// left alone; a missing day line is added. Returns the entry's rel path.
+async function newEntry(folder, { project = null, date = null } = {}) {
+  const d = date || new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) throw new Error('Bad date');
+  const dayRel = `journal/${d}.md`;
+  const dayAbs = docPath(folder, dayRel);
+  const exists = async (p) => fs.access(p).then(() => true, () => false);
+  const dayHeader = `---\ndate: ${d}\n---\n\n## Projects\n\n## Other\n- \n`;
+  if (!(await exists(dayAbs))) {
+    await fs.mkdir(path.dirname(dayAbs), { recursive: true });
+    await writeAtomic(dayAbs, dayHeader);
+  }
+  if (!project) return dayRel;
+  if (!/^[A-Za-z0-9._-]+$/.test(project)) throw new Error('Bad project slug');
+  const entryRel = `projects/${project}/journal/${d}.md`;
+  const entryAbs = docPath(folder, entryRel);
+  if (!(await exists(entryAbs))) {
+    await fs.mkdir(path.dirname(entryAbs), { recursive: true });
+    await writeAtomic(entryAbs, `---\ndate: ${d}\nproject: ${project}\nday: ../../../journal/${d}.md\n---\n\n`);
+  }
+  const line = `- [${project}](../projects/${project}/journal/${d}.md): `;
+  let day = await fs.readFile(dayAbs, 'utf8');
+  if (!day.includes(`](../projects/${project}/journal/${d}.md)`)) {
+    day = day.includes('## Projects\n')
+      ? day.replace('## Projects\n', `## Projects\n${line}\n`)
+      : `${day.replace(/\n*$/, '\n')}\n## Projects\n${line}\n`;
+    await writeAtomic(dayAbs, day);
+  }
+  return entryRel;
+}
+
 // Tells the claude session which paper the user is viewing (see CLAUDE.md).
 async function writeState(lib, state) {
+  // A workspace folder has no .papyr/ until the first selection; create it.
+  await fs.mkdir(path.join(lib, '.papyr'), { recursive: true });
   await writeAtomic(path.join(lib, '.papyr', 'state.json'), JSON.stringify(state, null, 2) + '\n');
 }
 
@@ -233,6 +333,12 @@ module.exports = {
   saveNote,
   readNote,
   writeState,
+  listDocs,
+  docPath,
+  loadDoc,
+  saveDoc,
+  newEntry,
+  isDocIgnoredTop,
   papersDir,
   notesDir,
   notePath,

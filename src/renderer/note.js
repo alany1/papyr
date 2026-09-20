@@ -11,16 +11,19 @@ const Note = (() => {
     katexOptions: { throwOnError: false },
   });
 
-  let currentBase = null;
+  // What the pane shows: a paper's paired note ({ kind: 'note', base }) or a
+  // workspace document ({ kind: 'doc', rel }). Same editor, different file.
+  let current = null;
   let dirty = false;
   let saveTimer = null;
   let pendingDiskContent = null; // external change held back while the editor is dirty
   let mode = 'read';
+  let placeholder = 'Select a paper to open its note';
+
+  const sameTarget = (a, b) => !!a && !!b && a.kind === b.kind && (a.base ?? a.rel) === (b.base ?? b.rel);
 
   function renderView() {
-    view.innerHTML = currentBase === null
-      ? '<p class="note-placeholder">Select a paper to open its note</p>'
-      : md.render(editor.value);
+    view.innerHTML = current === null ? `<p class="note-placeholder">${placeholder}</p>` : md.render(editor.value);
   }
 
   function applyMode() {
@@ -38,17 +41,18 @@ const Note = (() => {
       renderView();
     }
     applyMode();
-    if (mode === 'edit' && currentBase !== null) editor.focus();
+    if (mode === 'edit' && current !== null) editor.focus();
   }
 
   async function saveNow() {
     clearTimeout(saveTimer);
     saveTimer = null;
-    if (!dirty || currentBase === null) return;
-    const base = currentBase;
+    if (!dirty || current === null) return;
+    const target = current;
     const value = editor.value;
-    await window.papyr.saveNote(base, value);
-    if (currentBase === base && editor.value === value) dirty = false;
+    if (target.kind === 'note') await window.papyr.saveNote(target.base, value);
+    else await window.papyr.saveDoc(target.rel, value);
+    if (sameTarget(current, target) && editor.value === value) dirty = false;
   }
 
   function scheduleSave() {
@@ -71,20 +75,22 @@ const Note = (() => {
 
   // The open note's file was renamed (paper rename); autosaves must follow.
   function rename(base) {
-    if (currentBase !== null) currentBase = base;
+    if (current !== null && current.kind === 'note') current = { kind: 'note', base };
   }
 
-  // Called by app.js before switching papers and on window close.
+  // Called by app.js before switching files and on window close.
   async function flush() {
     hideBanner();
     await saveNow();
   }
 
-  async function open(base) {
-    currentBase = base;
+  async function openTarget(target) {
+    current = target;
     editor.disabled = false;
-    const { content } = await window.papyr.loadNote(base);
-    if (currentBase !== base) return; // user switched again mid-load
+    const { content } = target.kind === 'note'
+      ? await window.papyr.loadNote(target.base)
+      : await window.papyr.loadDoc(target.rel);
+    if (!sameTarget(current, target)) return; // user switched again mid-load
     editor.value = content;
     editor.scrollTop = 0;
     dirty = false;
@@ -95,8 +101,11 @@ const Note = (() => {
     }
   }
 
+  const open = (base) => openTarget({ kind: 'note', base });
+  const openDoc = (rel) => openTarget({ kind: 'doc', rel });
+
   function close() {
-    currentBase = null;
+    current = null;
     dirty = false;
     editor.value = '';
     editor.disabled = true;
@@ -104,8 +113,7 @@ const Note = (() => {
     renderView();
   }
 
-  function handleDiskChange({ base, content }) {
-    if (base !== currentBase) return;
+  function applyDiskChange(content) {
     if (!dirty) {
       setContent(content);
     } else if (content !== editor.value) {
@@ -114,8 +122,22 @@ const Note = (() => {
     }
   }
 
-  function init(initialMode) {
+  function handleDiskChange({ base, content }) {
+    if (current === null || current.kind !== 'note' || base !== current.base) return;
+    applyDiskChange(content);
+  }
+
+  function handleDocDiskChange({ rel, content }) {
+    if (current === null || current.kind !== 'doc' || rel !== current.rel) return;
+    applyDiskChange(content);
+  }
+
+  function init(initialMode, opts = {}) {
     if (initialMode === 'edit') mode = 'edit';
+    if (opts.placeholder) {
+      placeholder = opts.placeholder;
+      editor.placeholder = opts.placeholder;
+    }
     editor.addEventListener('input', () => {
       dirty = true;
       scheduleSave();
@@ -123,7 +145,7 @@ const Note = (() => {
     editor.addEventListener('blur', () => saveNow().catch(console.error));
     modeBtn.addEventListener('click', () => setMode(mode === 'read' ? 'edit' : 'read'));
     view.addEventListener('dblclick', () => {
-      if (currentBase !== null) setMode('edit');
+      if (current !== null) setMode('edit');
     });
     document.getElementById('note-reload').addEventListener('click', () => {
       if (pendingDiskContent !== null) setContent(pendingDiskContent);
@@ -137,5 +159,8 @@ const Note = (() => {
     renderView();
   }
 
-  return { init, open, close, flush, rename, handleDiskChange, setMode, getMode: () => mode };
+  return {
+    init, open, openDoc, close, flush, rename, handleDiskChange, handleDocDiskChange,
+    setMode, getMode: () => mode, getCurrent: () => current,
+  };
 })();

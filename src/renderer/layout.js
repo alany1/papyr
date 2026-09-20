@@ -6,7 +6,9 @@
 // <iframe> forces Chromium to reload it, which made rearranging/minimizing
 // reload the PDF. Structure changes only rebuild the cheap divider elements.
 const Layout = (() => {
-  const PANE_IDS = ['pdf', 'note', 'term'];
+  // Which panes this window has: the library shows paper + note + assistant,
+  // a workspace window shows document + assistant (no PDF). Set by init().
+  let PANE_IDS = ['pdf', 'note', 'term'];
   const LABELS = { pdf: 'paper', note: 'note', term: 'assistant' };
   const GAP = 8;
   const MIN_COL_PX = 150;
@@ -21,16 +23,24 @@ const Layout = (() => {
   const dockEl = document.getElementById('minimized-dock');
   const root = document.documentElement;
 
-  const paneEls = Object.fromEntries(PANE_IDS.map((id) => [id, document.getElementById(`${id}-pane`)]));
+  let paneEls = Object.fromEntries(PANE_IDS.map((id) => [id, document.getElementById(`${id}-pane`)]));
 
-  const DEFAULT = () => ({
-    columns: [
-      { size: 5, panes: [{ id: 'pdf', size: 1 }] },
-      { size: 3, panes: [{ id: 'note', size: 1 }] },
-      { size: 3, panes: [{ id: 'term', size: 1 }] },
-    ],
-    minimized: [],
-  });
+  const DEFAULT = () => (PANE_IDS.includes('pdf')
+    ? {
+        columns: [
+          { size: 5, panes: [{ id: 'pdf', size: 1 }] },
+          { size: 3, panes: [{ id: 'note', size: 1 }] },
+          { size: 3, panes: [{ id: 'term', size: 1 }] },
+        ],
+        minimized: [],
+      }
+    : {
+        columns: [
+          { size: 6, panes: [{ id: 'note', size: 1 }] },
+          { size: 4, panes: [{ id: 'term', size: 1 }] },
+        ],
+        minimized: [],
+      });
 
   let state = DEFAULT();
   let vDividers = []; // index i sits between column i and i+1
@@ -373,7 +383,12 @@ const Layout = (() => {
     });
   }
 
-  function init(ui) {
+  function init(ui, paneIds) {
+    if (Array.isArray(paneIds) && paneIds.length > 0) PANE_IDS = paneIds;
+    paneEls = Object.fromEntries(PANE_IDS.map((id) => [id, document.getElementById(`${id}-pane`)]));
+    for (const el of document.querySelectorAll('#columns .pane')) {
+      if (!PANE_IDS.includes(el.dataset.pane)) el.classList.add('absent');
+    }
     state = validate(ui.layout) || DEFAULT();
     normalize(state);
     initSidebar(ui.sidebarWidth);
@@ -381,7 +396,7 @@ const Layout = (() => {
     new ResizeObserver(() => layoutRects()).observe(columnsEl);
     PANE_IDS.forEach(initHeaderDrag);
     document.querySelectorAll('.pane-min').forEach((btn) => {
-      btn.addEventListener('click', () => minimize(btn.dataset.pane));
+      if (PANE_IDS.includes(btn.dataset.pane)) btn.addEventListener('click', () => minimize(btn.dataset.pane));
     });
   }
 

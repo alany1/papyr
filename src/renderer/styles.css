@@ -697,3 +697,41 @@ body.pane-dragging, body.pane-dragging * { cursor: grabbing !important; }
   padding: 2px 4px 8px 12px;
 }
 #term .xterm { height: 100%; }
+
+/* ---- Workspace windows: a folder of markdown, no paper pane ---- */
+#columns .pane.absent { display: none; }
+#paper-list li.doc { padding-right: 10px; padding-left: 24px; }
+#paper-list li.doc::before {
+  content: '¶';
+  position: absolute;
+  left: 9px;
+  color: var(--fg-dim);
+  font-size: 11px;
+}
+#paper-list li.doc.selected::before { color: var(--accent); }
+#paper-list li.doc-header { padding-top: 12px; }
+#paper-list li.doc-header .group-add {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 5px;
+  border-radius: 5px;
+  display: none;
+}
+#paper-list li.doc-header:hover .group-add { display: inline-block; }
+#paper-list li.doc-header .group-add:hover { color: var(--accent); background: var(--bg-inset); }
+#new-entry-row { padding: 6px 10px; }
+#new-today {
+  background: none;
+  border: none;
+  color: var(--fg-dim);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 7px;
+  font-family: var(--font-ui);
+}
+#new-today:hover { color: var(--fg); background: var(--bg-hover); }

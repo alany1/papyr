@@ -13,6 +13,23 @@ Claude Code assistant that can see every paper and note.
 - **Assistant pane** — a real Claude Code session whose working directory is your library,
   so it can read and write across all papers and notes, and use its own web access.
 
+## Two kinds of folder
+
+Papyr opens two kinds of folder, each in its own window with its own assistant session:
+
+- **Library** — your papers and their notes (`papers/`, `notes/`). The reader: paper, note, assistant.
+- **Workspace** — any folder of markdown: proposals, a journal, ideas, meeting notes. The
+  sidebar is the file tree (each project under `projects/` is its own group; dated folders
+  list newest first), the note pane edits the selected file, and the assistant runs in that
+  folder, so it loads the folder's own `CLAUDE.md`. `+ today` (⌘⇧J) opens today's
+  `journal/<date>.md`; a project's `+` opens `projects/<slug>/journal/<date>.md` and links it
+  from the day file. `.papyr/state.json` in the folder names the open file (`currentDoc`).
+
+**File → Open Workspace** (⌘⇧O) opens the workspace window; **Choose Workspace Folder…**
+picks or changes the folder. ⌘1 / ⌘2 switch between the library and workspace windows. Both
+windows come back at the next launch if they were open. The two folders never touch: nothing
+is written into the library by the workspace or the other way round.
+
 ## Setup
 
 ### As a normal Mac app (no npm after the first build)
