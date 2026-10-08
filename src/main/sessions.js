@@ -4,12 +4,15 @@
 const sessions = new Map(); // webContents.id -> session
 
 function add(session) {
-  sessions.set(session.win.webContents.id, session);
+  // Captured now: by the time the window's 'closed' fires, its webContents is
+  // destroyed and reading .id throws.
+  session.contentsId = session.win.webContents.id;
+  sessions.set(session.contentsId, session);
   return session;
 }
 
 function remove(session) {
-  sessions.delete(session.win.webContents.id);
+  sessions.delete(session.contentsId);
 }
 
 function byContents(webContents) {

@@ -1,5 +1,5 @@
 import * as pdfjsLib from '../pdfjs/build/pdf.min.mjs';
-import { PDFViewer, EventBus, PDFLinkService, PDFFindController, FindState } from '../pdfjs/web/pdf_viewer.mjs';
+import { PDFViewer, EventBus, PDFLinkService, PDFFindController, FindState, LinkTarget } from '../pdfjs/web/pdf_viewer.mjs';
 import { previewDest } from './linkpreview.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdfjs/build/pdf.worker.min.mjs';
@@ -7,7 +7,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdfjs/build/pdf.worker.min.mjs';
 const container = document.getElementById('viewerContainer');
 container.tabIndex = -1; // focusable, so the find bar can hand focus back to the pages
 const eventBus = new EventBus();
-const linkService = new PDFLinkService({ eventBus });
+// External links get target=_blank, so the host app's window-open handler
+// sends them to the default browser instead of navigating this frame.
+const linkService = new PDFLinkService({ eventBus, externalLinkTarget: LinkTarget.BLANK });
 const findController = new PDFFindController({ eventBus, linkService });
 const viewer = new PDFViewer({
   container,

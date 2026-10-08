@@ -1,4 +1,4 @@
-const { app, BrowserWindow, protocol, net, nativeTheme, Menu, dialog } = require('electron');
+const { app, BrowserWindow, protocol, net, nativeTheme, Menu, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { pathToFileURL } = require('url');
@@ -88,6 +88,11 @@ function handlePapyrRequest(request) {
   return serveFile(abs, mime);
 }
 
+// Only web links leave the app; anything else (file:, javascript:, …) is dropped.
+function openExternal(url) {
+  if (/^https?:\/\//i.test(url)) shell.openExternal(url);
+}
+
 // One window per folder. 'library' shows the reader (paper, note, assistant)
 // over config.libraryPath; 'workspace' shows a folder of markdown (file tree,
 // document, assistant) over config.workspacePath. Each has its own assistant
@@ -135,8 +140,23 @@ function createWindow(kind, folder) {
     });
   }
 
-  win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  win.webContents.on('will-navigate', (e) => e.preventDefault());
+  // Links in a paper (and anywhere else) open in the default browser; nothing
+  // navigates inside the app. The paper sits in an iframe, so frame
+  // navigations need guarding too, or an external link blanks the pane.
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternal(url);
+    return { action: 'deny' };
+  });
+  win.webContents.on('will-navigate', (e, url) => {
+    e.preventDefault();
+    openExternal(url);
+  });
+  win.webContents.on('will-frame-navigate', (e) => {
+    if (e.isMainFrame) return; // handled by will-navigate
+    if (e.url.startsWith('papyr://')) return; // the viewer iframe loading a paper
+    e.preventDefault();
+    openExternal(e.url);
+  });
 
   // Give the renderer a moment to flush an unsaved note before closing.
   win.on('close', (e) => {

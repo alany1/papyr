@@ -19,13 +19,15 @@ function minimalPdf() {
   const objs = [
     '<</Type/Catalog/Pages 2 0 R>>',
     '<</Type/Pages/Kids[3 0 R 6 0 R]/Count 2>>',
-    page(4, '/Annots[8 0 R]'),
+    page(4, '/Annots[8 0 R 9 0 R]'),
     `<</Length ${body.length}>>stream\n${body}\nendstream`,
     '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>',
     page(7),
     `<</Length ${refs.length}>>stream\n${refs}\nendstream`,
     // the "[1]" in "as shown in [1]." → page 2, just under the "References" line
     '<</Type/Annot/Subtype/Link/Rect[148 676 166 692]/Border[0 0 0]/Dest[6 0 R/XYZ 72 698 null]>>',
+    // an external link (e.g. a DOI) over "Hello Papyr"
+    '<</Type/Annot/Subtype/Link/Rect[72 696 140 712]/Border[0 0 0]/A<</S/URI/URI(https://example.org/paper)>>>>',
   ];
   let out = '%PDF-1.4\n';
   const offsets = [];
@@ -254,6 +256,29 @@ async function run(win) {
     check('peek "go to" jumps to the reference', !!peeked && peeked.jumped && peeked.hiddenAfter,
       JSON.stringify(peeked));
     await viewerFrame()?.executeJavaScript(`window.__papyrViewer.currentPageNumber = 1`);
+
+    // Clicking an external link hands the URL to the default browser and
+    // leaves the viewer frame where it is (it used to navigate the iframe
+    // to the URL, blanking the pane).
+    const { shell } = require('electron');
+    const realOpen = shell.openExternal;
+    const opened = [];
+    shell.openExternal = (url) => { opened.push(url); return Promise.resolve(); };
+    const ext = await viewerFrame()?.executeJavaScript(`
+      (async () => {
+        const a = document.querySelector('.annotationLayer a[href^="https://"]');
+        if (!a) return { error: 'no external link rendered' };
+        a.click();
+        await new Promise(r => setTimeout(r, 500));
+        return { href: a.href, target: a.target, stillViewer: !!window.__papyrViewer };
+      })()
+    `);
+    await sleep(300);
+    shell.openExternal = realOpen;
+    check('external link opens in the default browser', opened.length === 1 && opened[0] === 'https://example.org/paper',
+      JSON.stringify({ ext, opened }));
+    check('external link leaves the viewer in place',
+      !!ext && ext.stillViewer && viewerFrame()?.url.includes('pdfviewer/viewer.html'), JSON.stringify(ext));
 
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 
