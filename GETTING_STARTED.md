@@ -54,7 +54,7 @@ after installing, press any key in the pane to retry.
   straight into `~/Papyr/papers/` in Finder. If a paper is already in your
   library (same file, or same name), Papyr asks whether to open the existing
   one or add this as a separate paper.
-- **⌘B** toggles the paper list; click a paper to read it — its note opens
+- **⇧⇥** (Shift+Tab) toggles the paper list; click a paper to read it — its note opens
   beside it and autosaves as you type. The search box at the top of the list
   filters papers as you type (**⇧⌘F** jumps to it; Enter opens the top match). Hover a paper and click **✕** to delete
   it (paper + note go to the Trash, so it's recoverable), or click **☆** to star
@@ -63,6 +63,7 @@ after installing, press any key in the pane to retry.
   header to star it). **⌘E** flips the note between editing
   and rendered reading view (markdown + LaTeX). **⌘F** finds a word or phrase
   in the open paper (Enter / Shift+Enter jump between matches, Esc closes).
+  Hover a citation like [5] to see the reference it points to (⌘-click to jump there).
 - **Ask the assistant** about what you're reading: it always knows which paper
   is open, so "summarize this paper" or "draft this paper's note" just works.
   Select a passage in the PDF or note and hit **⌘⌥K** to quote it into the
@@ -71,7 +72,8 @@ after installing, press any key in the pane to retry.
   them (click a shortcut, press the new keys). Handy one: **⇧⌘T** folds or
   expands every group in the paper list at once.
 - Drag pane headers to rearrange the layout; **–** minimizes a pane (a chip in
-  the title bar brings it back); **☾** in the paper header inverts PDF pages
+  the title bar brings it back). **Tab** shows or hides the assistant; the note
+  pane has a toggle too, unbound until you give it a key in the ⌘ panel; **☾** in the paper header inverts PDF pages
   for dark reading.
 
 ## If something looks stuck

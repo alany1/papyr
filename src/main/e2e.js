@@ -7,16 +7,25 @@ const sessions = require('./sessions');
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Tiny but structurally valid single-page PDF, used to self-seed an isolated
+// Tiny but structurally valid two-page PDF, used to self-seed an isolated
 // test library (run via scripts/e2e.sh so the user's real library is untouched).
+// Page 1 cites "[1]" with an internal link to the reference entry on page 2.
 function minimalPdf() {
-  const stream = 'BT /F1 12 Tf 72 700 Td (Hello Papyr) Tj ET';
+  const body = 'BT /F1 12 Tf 72 700 Td (Hello Papyr) Tj 0 -20 Td (as shown in [1].) Tj ET';
+  const refs = 'BT /F1 10 Tf 72 700 Td (References) Tj 0 -16 Td ([1] A. Author. A Study of Citations. 2020.) Tj'
+    + ' 0 -14 Td ([2] B. Writer. Another Paper Entirely. 2021.) Tj ET';
+  const page = (contents, extra = '') =>
+    `<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents ${contents} 0 R/Resources<</Font<</F1 5 0 R>>>>${extra}>>`;
   const objs = [
     '<</Type/Catalog/Pages 2 0 R>>',
-    '<</Type/Pages/Kids[3 0 R]/Count 1>>',
-    '<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>',
-    `<</Length ${stream.length}>>stream\n${stream}\nendstream`,
+    '<</Type/Pages/Kids[3 0 R 6 0 R]/Count 2>>',
+    page(4, '/Annots[8 0 R]'),
+    `<</Length ${body.length}>>stream\n${body}\nendstream`,
     '<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>',
+    page(7),
+    `<</Length ${refs.length}>>stream\n${refs}\nendstream`,
+    // the "[1]" in "as shown in [1]." → page 2, just under the "References" line
+    '<</Type/Annot/Subtype/Link/Rect[148 676 166 692]/Border[0 0 0]/Dest[6 0 R/XYZ 72 698 null]>>',
   ];
   let out = '%PDF-1.4\n';
   const offsets = [];
@@ -70,6 +79,23 @@ async function run(win) {
     const nowHidden = await js(`document.getElementById('app').classList.contains('sidebar-hidden')`);
     check('sidebar toggle flips visibility', nowHidden === !wasHidden, `was=${wasHidden}`);
     if (nowHidden) await js(`document.getElementById('sidebar-toggle').click()`);
+    const shiftTab = `window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab', key: 'Tab', shiftKey: true, cancelable: true }))`;
+    await js(shiftTab);
+    const hiddenAfterKey = await js(`document.getElementById('app').classList.contains('sidebar-hidden')`);
+    check('shift+tab hides the sidebar', hiddenAfterKey === true);
+    await js(shiftTab);
+    const shownAfterKey = await js(`document.getElementById('app').classList.contains('sidebar-hidden')`);
+    check('shift+tab shows the sidebar again', shownAfterKey === false);
+    const tab = `window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Tab', key: 'Tab', cancelable: true }))`;
+    const termMin = () => js(`document.getElementById('term-pane').classList.contains('minimized')`);
+    const termWasMin = await termMin();
+    await js(tab);
+    check('tab toggles the assistant pane', (await termMin()) === !termWasMin, `was=${termWasMin}`);
+    await js(tab);
+    check('tab toggles the assistant pane back', (await termMin()) === termWasMin);
+    const noteMin = await js(`document.getElementById('note-pane').classList.contains('minimized')`);
+    await js(`window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyN', key: 'n', metaKey: true, altKey: true, cancelable: true }))`);
+    check('note toggle is unbound by default', (await js(`document.getElementById('note-pane').classList.contains('minimized')`)) === noteMin);
     const count = await js(`document.querySelectorAll('#paper-list li.paper').length`);
     check('sidebar lists papers', count >= 1, `count=${count}`);
 
@@ -192,6 +218,42 @@ async function run(win) {
       `!document.getElementById('findbar').hidden && document.activeElement === document.getElementById('find-input')`
     ));
     await viewerFrame()?.executeJavaScript(`window.__papyrFind.close()`);
+
+    // Hovering a citation peeks at the reference; clicking pins instead of jumping
+    const peeked = await viewerFrame()?.executeJavaScript(`
+      (async () => {
+        const wait = async (cond, ms = 4000) => {
+          const end = Date.now() + ms;
+          while (!cond()) { if (Date.now() > end) return false; await new Promise(r => setTimeout(r, 100)); }
+          return true;
+        };
+        const sel = '.annotationLayer [data-internal-link] a';
+        if (!(await wait(() => document.querySelector(sel)))) return { error: 'no link rendered' };
+        const a = document.querySelector(sel);
+        const peek = document.getElementById('peek');
+        const text = document.getElementById('peek-text');
+        a.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }));
+        const shown = await wait(() => !peek.hidden && text.textContent.includes('Citations'));
+        const hoverText = text.textContent;
+        const c = document.getElementById('viewerContainer');
+        const before = c.scrollTop;
+        a.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: c }));
+        a.click();
+        await new Promise(r => setTimeout(r, 500));
+        const stayed = c.scrollTop === before;
+        const pinned = !peek.hidden;
+        document.getElementById('peek-go').click();
+        const jumped = await wait(() => window.__papyrViewer.currentPageNumber === 2);
+        return { shown, hoverText, stayed, pinned, jumped, hiddenAfter: peek.hidden };
+      })()
+    `);
+    check('hovering a citation shows the reference', !!peeked && peeked.shown
+      && peeked.hoverText.startsWith('[1] A. Author') && !peeked.hoverText.includes('[2]'), JSON.stringify(peeked));
+    check('clicking a citation pins the peek without jumping', !!peeked && peeked.stayed && peeked.pinned,
+      JSON.stringify(peeked));
+    check('peek "go to" jumps to the reference', !!peeked && peeked.jumped && peeked.hiddenAfter,
+      JSON.stringify(peeked));
+    await viewerFrame()?.executeJavaScript(`window.__papyrViewer.currentPageNumber = 1`);
 
     check('note auto-created on disk', fs.existsSync(notePath), notePath);
 

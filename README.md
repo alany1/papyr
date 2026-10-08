@@ -66,7 +66,7 @@ Drop onto a collection header to file it there; anywhere else imports to the lib
 If the paper is **already in the library** — a byte-identical PDF under any name, or the same
 name with different contents (e.g. another version) — Papyr asks first: open the existing
 one, add it anyway as a separate paper, or cancel.
-You can also just drop PDFs into `~/Papyr/papers/` in Finder — they appear in the sidebar immediately (☰ or ⌘B toggles
+You can also just drop PDFs into `~/Papyr/papers/` in Finder — they appear in the sidebar immediately (☰ or ⇧⇥ toggles
 the sidebar; it starts hidden). Click a paper to read it; its note opens beside it.
 The **search box** at the top of the sidebar filters the list as you type (matches paper
 and collection names across every group; ⇧⌘F jumps to it, Enter opens the top match, Esc clears).
@@ -103,6 +103,9 @@ into the editor live, and never clobber unsaved typing (you get a Reload / Keep 
   flushes every ~5s and loses writes made just before quit).
 - **⌘F** finds a word or phrase in the open paper: matches highlight as you type,
   Enter / Shift+Enter step through them, Esc closes (a selected passage seeds the query).
+- **Hover a citation** (or any in-paper link: figure, section, footnote) to peek at what
+  it points to — the reference entry, read from the PDF's text. Clicking pins the card
+  instead of jumping; its "go to" (or ⌘-click on the link) jumps there.
 - **⌘⌥K** quotes the current selection (PDF or note) into the assistant input as
   `"…" (paper, p.N)` and focuses it — select a passage, hit the shortcut, ask away.
   With nothing selected it just jumps focus to the assistant.

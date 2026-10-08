@@ -1,5 +1,6 @@
 import * as pdfjsLib from '../pdfjs/build/pdf.min.mjs';
 import { PDFViewer, EventBus, PDFLinkService, PDFFindController, FindState } from '../pdfjs/web/pdf_viewer.mjs';
+import { previewDest } from './linkpreview.mjs';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '../pdfjs/build/pdf.worker.min.mjs';
 
@@ -78,6 +79,7 @@ window.addEventListener('message', (e) => {
   } else if (d.type === 'papyr-shortcuts') {
     if (typeof d.quote === 'string') quoteCombo = d.quote;
     if (typeof d.find === 'string') findCombo = d.find;
+    if (Array.isArray(d.relay)) relayCombos = d.relay.filter((c) => typeof c === 'string');
   } else if (d.type === 'papyr-find') {
     openFind();
   }
@@ -87,7 +89,14 @@ window.addEventListener('message', (e) => {
 // the app (user-rebindable, "Mod+Alt+K" form — see shortcuts.js).
 let quoteCombo = 'Mod+Alt+K';
 let findCombo = 'Mod+F';
+// Combos the app handles (sidebar / pane toggles): matched here, run there.
+let relayCombos = ['Shift+Tab', 'Tab'];
 window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !peek.hidden) {
+    e.preventDefault();
+    hidePeek();
+    return;
+  }
   const parts = [];
   if (e.metaKey || e.ctrlKey) parts.push('Mod');
   if (e.altKey) parts.push('Alt');
@@ -97,6 +106,9 @@ window.addEventListener('keydown', (e) => {
   if (combo === findCombo) {
     e.preventDefault();
     openFind();
+  } else if (relayCombos.includes(combo)) {
+    e.preventDefault();
+    window.parent.postMessage({ type: 'papyr-shortcut', combo }, '*');
   } else if (combo === quoteCombo) {
     e.preventDefault();
     const sel = window.getSelection();
@@ -185,6 +197,148 @@ eventBus.on('updatefindcontrolstate', ({ state, matchesCount }) => {
   showMatches(matchesCount, state === FindState.NOT_FOUND);
 });
 window.__papyrFind = { open: openFind, close: closeFind }; // diagnostics / tests
+
+// ---- link peek ----
+// Hovering an in-document link (a citation like [5], a figure / section ref)
+// shows what it points to in a small card instead of making you go there.
+// Clicking pins the card rather than jumping; "go to" (or ⌘-click) jumps.
+const peek = document.getElementById('peek');
+const peekText = document.getElementById('peek-text');
+const peekPage = document.getElementById('peek-page');
+const LINK = '.annotationLayer [data-internal-link] a';
+const peeks = new Map(); // href -> Promise<{ pageNumber, text } | null>
+let peekLink = null;
+let peekPinned = false;
+let showTimer = 0;
+let hideTimer = 0;
+
+// pdf.js encodes the dest into the href (see PDFLinkService.getDestinationHash)
+function destOf(a) {
+  const href = a.getAttribute('href') || '';
+  if (!href.startsWith('#') || href.length < 2) return null;
+  const raw = unescape(href.slice(1));
+  try {
+    const v = JSON.parse(raw);
+    if (Array.isArray(v)) return v;
+  } catch {}
+  return raw;
+}
+
+function resolvePeek(a) {
+  const href = a.getAttribute('href');
+  if (!peeks.has(href)) {
+    const dest = destOf(a);
+    peeks.set(
+      href,
+      dest == null || !viewer.pdfDocument
+        ? Promise.resolve(null)
+        : previewDest(viewer.pdfDocument, dest).catch((err) => {
+            console.error('papyr: link peek failed:', err);
+            return null;
+          })
+    );
+  }
+  return peeks.get(href);
+}
+
+function placePeek() {
+  if (!peekLink) return;
+  const r = peekLink.getBoundingClientRect();
+  const w = peek.offsetWidth;
+  const h = peek.offsetHeight;
+  peek.style.left = Math.max(8, Math.min(r.left, innerWidth - w - 8)) + 'px';
+  const below = r.bottom + 6;
+  peek.style.top = (below + h > innerHeight - 8 ? Math.max(8, r.top - h - 6) : below) + 'px';
+}
+
+async function showPeek(a, pin = false) {
+  clearTimeout(showTimer);
+  clearTimeout(hideTimer);
+  peekLink = a;
+  peekPinned = pin || (peekPinned && !peek.hidden);
+  a.removeAttribute('title'); // no native tooltip on top of ours
+  const pending = resolvePeek(a);
+  if (peek.hidden) {
+    peekText.textContent = '…';
+    peekPage.textContent = '';
+    peek.hidden = false;
+    placePeek();
+  }
+  const res = await pending;
+  if (peekLink !== a || peek.hidden) return;
+  if (!res) {
+    peekText.textContent = 'Can’t preview this link.';
+    peekPage.textContent = '';
+  } else {
+    // Short scraps (a figure's dest lands on the image, not text) aren't worth showing.
+    const t = res.text.length >= 12 ? res.text : '';
+    peekText.textContent = t || `Page ${res.pageNumber}`;
+    peekText.classList.toggle('dim', !t);
+    peekPage.textContent = t ? `p. ${res.pageNumber}` : '';
+  }
+  peekText.scrollTop = 0;
+  placePeek();
+}
+
+function hidePeek() {
+  clearTimeout(showTimer);
+  clearTimeout(hideTimer);
+  peek.hidden = true;
+  peekLink = null;
+  peekPinned = false;
+}
+
+function hidePeekSoon() {
+  clearTimeout(showTimer);
+  if (peekPinned) return;
+  clearTimeout(hideTimer);
+  hideTimer = setTimeout(hidePeek, 250);
+}
+
+function goToPeek(a) {
+  const dest = destOf(a);
+  hidePeek();
+  if (dest != null) linkService.goToDestination(dest);
+}
+
+container.addEventListener('mouseover', (e) => {
+  const a = e.target.closest(LINK);
+  if (!a) return;
+  clearTimeout(hideTimer);
+  if (a === peekLink && !peek.hidden) return;
+  resolvePeek(a); // start reading while the hover delay runs
+  clearTimeout(showTimer);
+  showTimer = setTimeout(() => showPeek(a), peek.hidden ? 200 : 0);
+});
+container.addEventListener('mouseout', (e) => {
+  const a = e.target.closest(LINK);
+  if (!a || a.contains(e.relatedTarget) || peek.contains(e.relatedTarget)) return;
+  hidePeekSoon();
+});
+peek.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+peek.addEventListener('mouseleave', (e) => {
+  if (!e.relatedTarget?.closest?.(LINK)) hidePeekSoon();
+});
+// Capture phase, so pdf.js's own onclick (which jumps) never runs.
+container.addEventListener(
+  'click',
+  (e) => {
+    const a = e.target.closest(LINK);
+    if (!a) {
+      if (!peek.hidden) hidePeek();
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.metaKey || e.ctrlKey) goToPeek(a);
+    else showPeek(a, true);
+  },
+  true
+);
+document.getElementById('peek-go').addEventListener('click', () => peekLink && goToPeek(peekLink));
+container.addEventListener('scroll', () => !peek.hidden && hidePeek(), { passive: true });
+window.addEventListener('resize', () => !peek.hidden && hidePeek());
+window.__papyrPeek = { show: showPeek, hide: hidePeek, resolve: resolvePeek }; // diagnostics / tests
 
 const fileUrl = new URLSearchParams(location.search).get('file');
 if (fileUrl) {

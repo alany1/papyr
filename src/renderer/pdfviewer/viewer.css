@@ -99,3 +99,48 @@ html, body {
   --highlight-bg-color: rgba(224, 163, 112, 0.4);
   --highlight-selected-bg-color: rgba(224, 120, 50, 0.7);
 }
+
+/* ---- link peek: what a citation / ref points to, under the link ---- */
+#peek {
+  position: fixed;
+  z-index: 11;
+  width: max-content;
+  max-width: min(440px, calc(100vw - 16px));
+  padding: 9px 11px 7px;
+  background: #2b2520;
+  border: 1px solid #3b332a;
+  border-radius: 10px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
+  font-family: ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #eadfcd;
+}
+#peek[hidden] { display: none; }
+#peek-text {
+  max-height: 180px;
+  overflow: auto;
+  user-select: text;
+  overflow-wrap: anywhere;
+}
+#peek-text.dim { color: #a3937d; }
+#peek-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 5px;
+  font-size: 11px;
+  color: #a3937d;
+}
+#peek-go {
+  background: none;
+  border: none;
+  color: #a3937d;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 7px;
+  margin-right: -5px;
+  border-radius: 7px;
+}
+#peek-go:hover { color: #eadfcd; background: #383028; }

@@ -3,7 +3,9 @@
 // A combo is stored as "Mod+Alt+Shift+<Key>" where Mod means ⌘ on mac / Ctrl
 // elsewhere and <Key> is a KeyboardEvent.code with its Key/Digit prefix
 // stripped ("B", "K", "Enter"). Overrides persist in config as ui.shortcuts
-// ({actionId: combo}); an absent entry means the default.
+// ({actionId: combo}); an absent entry means the default, "" means unbound.
+// An action may ship with no default combo (null) — it only fires once the
+// user assigns one in the panel.
 const Shortcuts = (() => {
   const IS_MAC = navigator.platform.startsWith('Mac');
   const actions = []; // {id, label, combo, handler, fixed}
@@ -25,7 +27,7 @@ const Shortcuts = (() => {
     return parts.join('+');
   }
 
-  const KEY_GLYPHS = { Enter: '↩', Escape: '⎋', Backspace: '⌫', Space: '␣',
+  const KEY_GLYPHS = { Enter: '↩', Escape: '⎋', Backspace: '⌫', Space: '␣', Tab: '⇥',
     Comma: ',', Period: '.', Slash: '/', Backslash: '\\', Semicolon: ';',
     Quote: "'", BracketLeft: '[', BracketRight: ']', Minus: '-', Equal: '=',
     ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓' };
@@ -44,9 +46,15 @@ const Shortcuts = (() => {
 
   const comboFor = (id) => {
     const a = actions.find((a) => a.id === id);
-    return overrides[id] || a.combo;
+    if (id in overrides) return overrides[id] || null;
+    return a.combo || null;
   };
-  const displayFor = (id) => display(comboFor(id));
+  const displayFor = (id) => {
+    const combo = comboFor(id);
+    return combo ? display(combo) : 'unbound';
+  };
+  // A combo is bindable if it can't fire while typing: needs ⌘/⌥, or is Tab.
+  const bindable = (combo) => /\bMod\b|\bAlt\b/.test(combo) || /^(Shift\+)?Tab$/.test(combo);
 
   function add(id, label, combo, handler, opts = {}) {
     actions.push({ id, label, combo, handler, fixed: !!opts.fixed });
@@ -60,19 +68,25 @@ const Shortcuts = (() => {
       if (capturing) return; // the capture listener owns the keyboard
       const combo = eventCombo(ev);
       if (!combo) return;
-      const action = actions.find((a) => !a.fixed && comboFor(a.id) === combo);
-      if (action) {
-        ev.preventDefault();
-        action.handler();
-      }
+      if (trigger(combo)) ev.preventDefault();
     });
 
     initPanel();
   }
 
+  // Run the action bound to `combo` (if any); true when one fired. Also used
+  // for combos relayed from the PDF frame, which has its own keyboard.
+  function trigger(combo) {
+    const action = actions.find((a) => !a.fixed && a.handler && comboFor(a.id) === combo);
+    if (!action) return false;
+    action.handler();
+    return true;
+  }
+
+  // combo: a combo string, "" to unbind, or null to reset to the default.
   function setOverride(id, combo) {
     const a = actions.find((a) => a.id === id);
-    if (combo === null || combo === a.combo) delete overrides[id];
+    if (combo === null || combo === (a.combo || '')) delete overrides[id];
     else overrides[id] = combo;
     window.papyr.setUi({ shortcuts: overrides });
     if (onChange) onChange();
@@ -101,10 +115,10 @@ const Shortcuts = (() => {
         kbd.textContent = display(a.combo);
         li.appendChild(kbd);
       } else {
-        if (overrides[a.id]) {
+        if (a.id in overrides) {
           const reset = document.createElement('button');
           reset.className = 'sc-reset';
-          reset.title = `Reset to ${display(a.combo)}`;
+          reset.title = a.combo ? `Reset to ${display(a.combo)}` : 'Reset (unbound by default)';
           reset.textContent = '↺';
           reset.addEventListener('click', () => {
             setOverride(a.id, null);
@@ -114,8 +128,9 @@ const Shortcuts = (() => {
         }
         const btn = document.createElement('button');
         btn.className = 'sc-combo';
+        btn.classList.toggle('sc-unbound', !comboFor(a.id));
         btn.textContent = displayFor(a.id);
-        btn.title = 'Click, then press the new shortcut';
+        btn.title = 'Click, then press the new shortcut (⌫ unbinds)';
         btn.addEventListener('click', () => startCapture(a.id, btn, note));
         li.appendChild(btn);
       }
@@ -139,10 +154,14 @@ const Shortcuts = (() => {
       ev.preventDefault();
       ev.stopPropagation();
       if (ev.key === 'Escape') return done();
+      if ((ev.key === 'Backspace' || ev.key === 'Delete') && !ev.metaKey && !ev.ctrlKey && !ev.altKey) {
+        setOverride(id, '');
+        return done();
+      }
       const combo = eventCombo(ev);
       if (!combo) return; // bare modifier — keep waiting
-      if (!/\bMod\b|\bAlt\b/.test(combo)) {
-        note.textContent = 'use ⌘ or ⌥';
+      if (!bindable(combo)) {
+        note.textContent = 'use ⌘ or ⌥ (or ⇥)';
         return;
       }
       const clash = actions.find((a) => a.id !== id && comboFor(a.id) === combo);
@@ -172,5 +191,5 @@ const Shortcuts = (() => {
     });
   }
 
-  return { init, add, comboFor, displayFor };
+  return { init, add, comboFor, displayFor, trigger };
 })();

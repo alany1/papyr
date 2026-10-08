@@ -289,9 +289,11 @@
       setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
     });
 
-    Shortcuts.add('toggle-sidebar', 'toggle file list', 'Mod+B', () => {
+    Shortcuts.add('toggle-sidebar', 'toggle file list', 'Shift+Tab', () => {
       setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
     });
+    Shortcuts.add('toggle-assistant', 'show / hide assistant', 'Tab', () => Layout.toggle('term'));
+    Shortcuts.add('toggle-note', 'show / hide note', null, () => Layout.toggle('note'));
     Shortcuts.add('toggle-note-mode', 'edit / reading view', 'Mod+E', () => {
       Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
     });
@@ -415,7 +417,7 @@
     handleDrop(e.dataTransfer, ''); // drops outside a sidebar group import to the root
   });
 
-  // Paper list is hidden by default; ☰ or ⌘B brings it back.
+  // Paper list is hidden by default; ☰ or ⇧⇥ brings it back.
   setSidebarHidden(ui.sidebarHidden !== false);
   document.getElementById('sidebar-toggle').addEventListener('click', () => {
     setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
@@ -437,11 +439,15 @@
         .filter(Boolean)
         .join(', ');
       quoteToAssistant(d.text, source);
+    } else if (d && d.type === 'papyr-shortcut' && typeof d.combo === 'string') {
+      Shortcuts.trigger(d.combo); // a pane/sidebar toggle pressed inside the PDF frame
     }
   });
-  Shortcuts.add('toggle-sidebar', 'toggle paper list', 'Mod+B', () => {
+  Shortcuts.add('toggle-sidebar', 'toggle paper list', 'Shift+Tab', () => {
     setSidebarHidden(!appEl.classList.contains('sidebar-hidden'));
   });
+  Shortcuts.add('toggle-assistant', 'show / hide assistant', 'Tab', () => Layout.toggle('term'));
+  Shortcuts.add('toggle-note', 'show / hide note', null, () => Layout.toggle('note'));
   Shortcuts.add('toggle-note-mode', 'note: edit / reading view', 'Mod+E', () => {
     Note.setMode(Note.getMode() === 'read' ? 'edit' : 'read');
   });
@@ -470,13 +476,16 @@
   Shortcuts.add('assistant-newline', 'assistant: newline (enter sends)', 'Shift+Enter', null, { fixed: true });
 
   // The PDF viewer lives in its own frame, so it matches the quote and find
-  // shortcuts itself — tell it the current combos (and re-tell after any rebind).
+  // shortcuts itself and relays the sidebar/pane toggles back to us — tell it
+  // the current combos (and re-tell after any rebind).
+  const RELAYED = ['toggle-sidebar', 'toggle-assistant', 'toggle-note'];
   function syncShortcuts() {
     pdfFrame.contentWindow?.postMessage(
       {
         type: 'papyr-shortcuts',
         quote: Shortcuts.comboFor('quote-selection'),
         find: Shortcuts.comboFor('find-in-paper'),
+        relay: RELAYED.map(Shortcuts.comboFor).filter(Boolean),
       },
       '*'
     );

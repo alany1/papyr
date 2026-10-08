@@ -400,5 +400,12 @@ const Layout = (() => {
     });
   }
 
-  return { init };
+  const isMinimized = (id) => state.minimized.includes(id);
+  function toggle(id) {
+    if (!PANE_IDS.includes(id)) return;
+    if (isMinimized(id)) restore(id);
+    else minimize(id);
+  }
+
+  return { init, toggle, isMinimized };
 })();

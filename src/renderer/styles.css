@@ -168,6 +168,7 @@ button.sc-combo:hover { border-color: var(--accent); }
   font-size: 11px;
 }
 kbd.sc-fixed { color: var(--fg-dim); cursor: default; }
+.sc-combo.sc-unbound { color: var(--fg-dim); font-style: italic; }
 .sc-reset {
   background: none;
   border: none;
